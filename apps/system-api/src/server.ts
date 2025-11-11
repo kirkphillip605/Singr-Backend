@@ -24,9 +24,20 @@ import { registerHealthRoutes } from './routes/health';
 import { registerAuthRoutes } from './routes/auth';
 import { registerCustomerVenueRoutes } from './routes/customer/venues';
 import { registerCustomerSystemRoutes } from './routes/customer/systems';
+import { registerCustomerApiKeyRoutes } from './routes/customer/api-keys';
+import { registerCustomerSubscriptionRoutes } from './routes/customer/subscriptions';
+import { registerCustomerBrandingRoutes } from './routes/customer/branding';
+import { registerCustomerOrganizationUserRoutes } from './routes/customer/organization-users';
+import { registerCustomerSongdbRoutes } from './routes/customer/songdb';
 import type { RedisClient } from './lib/redis';
 import type { VenueService } from './customer/venue-service';
 import type { SystemService } from './customer/system-service';
+import type { ApiKeyService } from './customer/api-key-service';
+import type { SubscriptionService } from './customer/subscription-service';
+import type { BrandingService } from './customer/branding-service';
+import type { OrganizationUserService } from './customer/organization-user-service';
+import type { SongdbIngestionService } from './customer/songdb-ingestion-service';
+import type { QueueProducerSet } from './queues/producers';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -43,6 +54,12 @@ export type BuildServerOptions = {
   authService: AuthService;
   venueService: VenueService;
   systemService: SystemService;
+  apiKeyService: ApiKeyService;
+  subscriptionService: SubscriptionService;
+  brandingService: BrandingService;
+  organizationUserService: OrganizationUserService;
+  songdbService: SongdbIngestionService;
+  queueProducers: QueueProducerSet;
 };
 
 export async function buildServer(options: BuildServerOptions): Promise<FastifyInstance> {
@@ -55,6 +72,12 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
     authService,
     venueService,
     systemService,
+    apiKeyService,
+    subscriptionService,
+    brandingService,
+    organizationUserService,
+    songdbService,
+    queueProducers,
   } = options;
 
   const metricsRegistry = createMetricsRegistry(config);
@@ -116,6 +139,14 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
   await registerAuthRoutes(app, { config, redis, authService });
   await registerCustomerVenueRoutes(app, { config, venueService });
   await registerCustomerSystemRoutes(app, { config, systemService });
+  await registerCustomerApiKeyRoutes(app, { config, apiKeyService });
+  await registerCustomerSubscriptionRoutes(app, { config, subscriptionService });
+  await registerCustomerBrandingRoutes(app, { config, brandingService });
+  await registerCustomerOrganizationUserRoutes(app, {
+    config,
+    organizationUserService,
+  });
+  await registerCustomerSongdbRoutes(app, { config, songdbService });
 
   registerErrorHandlers(app);
 
@@ -125,6 +156,7 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
   app.addHook('onClose', async () => {
     await redis.quit();
     await prisma.$disconnect();
+    await queueProducers.close();
   });
 
   return app;

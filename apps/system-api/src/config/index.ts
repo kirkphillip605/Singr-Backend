@@ -52,6 +52,17 @@ export type AppConfig = {
   cache: {
     venueListTtlSeconds: number;
     systemListTtlSeconds: number;
+    apiKeyListTtlSeconds: number;
+    subscriptionListTtlSeconds: number;
+    brandingProfileTtlSeconds: number;
+    organizationUserListTtlSeconds: number;
+    songdbIngestTtlSeconds: number;
+  };
+  branding: {
+    uploadUrlTtlSeconds: number;
+  };
+  organization: {
+    invitationTtlSeconds: number;
   };
 };
 
@@ -88,6 +99,13 @@ const configSpec = {
   METRICS_ENABLED: bool({ devDefault: true, default: true }),
   VENUES_CACHE_TTL_SECONDS: num({ devDefault: 300, default: 300 }),
   SYSTEMS_CACHE_TTL_SECONDS: num({ devDefault: 300, default: 300 }),
+  API_KEYS_CACHE_TTL_SECONDS: num({ devDefault: 120, default: 120 }),
+  SUBSCRIPTIONS_CACHE_TTL_SECONDS: num({ devDefault: 120, default: 120 }),
+  BRANDING_CACHE_TTL_SECONDS: num({ devDefault: 600, default: 600 }),
+  ORG_USERS_CACHE_TTL_SECONDS: num({ devDefault: 300, default: 300 }),
+  SONGDB_CACHE_TTL_SECONDS: num({ devDefault: 60, default: 60 }),
+  BRANDING_UPLOAD_URL_TTL_SECONDS: num({ devDefault: 900, default: 900 }),
+  ORG_INVITATION_TTL_SECONDS: num({ devDefault: 86_400, default: 86_400 }),
 };
 
 function parseCorsOrigins(raw: string): string[] {
@@ -152,6 +170,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     cache: {
       venueListTtlSeconds: Number(raw.VENUES_CACHE_TTL_SECONDS),
       systemListTtlSeconds: Number(raw.SYSTEMS_CACHE_TTL_SECONDS),
+      apiKeyListTtlSeconds: Number(raw.API_KEYS_CACHE_TTL_SECONDS),
+      subscriptionListTtlSeconds: Number(raw.SUBSCRIPTIONS_CACHE_TTL_SECONDS),
+      brandingProfileTtlSeconds: Number(raw.BRANDING_CACHE_TTL_SECONDS),
+      organizationUserListTtlSeconds: Number(raw.ORG_USERS_CACHE_TTL_SECONDS),
+      songdbIngestTtlSeconds: Number(raw.SONGDB_CACHE_TTL_SECONDS),
+    },
+    branding: {
+      uploadUrlTtlSeconds: Number(raw.BRANDING_UPLOAD_URL_TTL_SECONDS),
+    },
+    organization: {
+      invitationTtlSeconds: Number(raw.ORG_INVITATION_TTL_SECONDS),
     },
   };
 }

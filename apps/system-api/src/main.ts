@@ -3,13 +3,21 @@ import { PermissionService } from './auth/permission-service';
 import { RefreshTokenStore } from './auth/refresh-token-store';
 import { TokenService } from './auth/token-service';
 import { TokenVerifier } from './auth/token-verifier';
+import Stripe from 'stripe';
+
 import { SystemService } from './customer/system-service';
 import { VenueService } from './customer/venue-service';
+import { ApiKeyService } from './customer/api-key-service';
+import { SubscriptionService } from './customer/subscription-service';
+import { BrandingService } from './customer/branding-service';
+import { OrganizationUserService } from './customer/organization-user-service';
+import { SongdbIngestionService } from './customer/songdb-ingestion-service';
 import { getConfig } from './config';
 import { createPrismaClient } from './lib/prisma';
 import { createRedisClient } from './lib/redis';
 import { initSentry } from './observability/sentry';
 import { buildServer } from './server';
+import { createQueueProducers } from './queues/producers';
 
 export async function bootstrap() {
   const config = getConfig();
@@ -20,6 +28,12 @@ export async function bootstrap() {
 
   const prisma = createPrismaClient({ config });
   await prisma.$connect();
+
+  const queueProducers = createQueueProducers(redis);
+
+  const stripe = config.stripe.apiKey
+    ? new Stripe(config.stripe.apiKey, { apiVersion: '2024-04-10' as const })
+    : null;
 
   const tokenVerifier = new TokenVerifier(config);
   const permissionService = new PermissionService(prisma, redis);
@@ -37,6 +51,37 @@ export async function bootstrap() {
   const systemService = new SystemService(prisma, redis, {
     cacheTtlSeconds: config.cache.systemListTtlSeconds,
   });
+  const apiKeyService = new ApiKeyService(prisma, redis, {
+    cacheTtlSeconds: config.cache.apiKeyListTtlSeconds,
+  });
+  const subscriptionService = new SubscriptionService(
+    prisma,
+    redis,
+    stripe,
+    queueProducers.stripeWebhookProducer,
+    {
+      cacheTtlSeconds: config.cache.subscriptionListTtlSeconds,
+    },
+  );
+  const brandingService = new BrandingService(prisma, redis, {
+    cacheTtlSeconds: config.cache.brandingProfileTtlSeconds,
+    uploadTtlSeconds: config.branding.uploadUrlTtlSeconds,
+    storageEndpoint: config.storage.endpoint,
+    bucket: config.storage.bucket,
+    signingSecret: config.storage.secretAccessKey,
+  });
+  const organizationUserService = new OrganizationUserService(
+    prisma,
+    redis,
+    queueProducers.invitationProducer,
+    {
+      cacheTtlSeconds: config.cache.organizationUserListTtlSeconds,
+      invitationTtlSeconds: config.organization.invitationTtlSeconds,
+    },
+  );
+  const songdbService = new SongdbIngestionService(prisma, redis, queueProducers.songIndexProducer, {
+    cacheTtlSeconds: config.cache.songdbIngestTtlSeconds,
+  });
 
   const app = await buildServer({
     config,
@@ -47,6 +92,12 @@ export async function bootstrap() {
     authService,
     venueService,
     systemService,
+    apiKeyService,
+    subscriptionService,
+    brandingService,
+    organizationUserService,
+    songdbService,
+    queueProducers,
   });
 
   await app.listen({ port: config.server.port, host: config.server.host });
