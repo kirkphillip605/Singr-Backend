@@ -50,6 +50,9 @@ export type AppConfig = {
     tracesSampleRate: number;
     profilesSampleRate: number;
     enabled: boolean;
+    environment: string | null;
+    release: string | null;
+    serverName: string | null;
   };
   cors: {
     origins: string[];
@@ -130,6 +133,9 @@ const configSpec = {
   SENTRY_DSN: str({ allowEmpty: true, default: '' }),
   SENTRY_TRACES_SAMPLE_RATE: num({ default: 0.1, devDefault: 0.1 }),
   SENTRY_PROFILES_SAMPLE_RATE: num({ default: 0.0, devDefault: 0.0 }),
+  SENTRY_ENVIRONMENT: str({ allowEmpty: true, default: '' }),
+  SENTRY_RELEASE: str({ allowEmpty: true, default: '' }),
+  SENTRY_SERVER_NAME: str({ allowEmpty: true, default: '' }),
   CORS_ALLOWED_ORIGINS: str({ allowEmpty: true, default: '' }),
   RATE_LIMIT_DEFAULT_WINDOW_MS: num({ devDefault: 60_000, default: 60_000 }),
   RATE_LIMIT_DEFAULT_MAX: num({ devDefault: 120, default: 100 }),
@@ -219,6 +225,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       tracesSampleRate: Number(raw.SENTRY_TRACES_SAMPLE_RATE),
       profilesSampleRate: Number(raw.SENTRY_PROFILES_SAMPLE_RATE),
       enabled: raw.SENTRY_DSN.length > 0,
+      environment:
+        raw.SENTRY_ENVIRONMENT.length > 0
+          ? raw.SENTRY_ENVIRONMENT
+          : (raw.NODE_ENV as AppConfig['env']),
+      release: raw.SENTRY_RELEASE.length > 0 ? raw.SENTRY_RELEASE : null,
+      serverName: raw.SENTRY_SERVER_NAME.length > 0 ? raw.SENTRY_SERVER_NAME : null,
     },
     cors: {
       origins: parseCorsOrigins(raw.CORS_ALLOWED_ORIGINS),

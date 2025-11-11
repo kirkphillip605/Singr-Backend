@@ -34,7 +34,7 @@ import { OpenKjCommandService } from './openkj/command-service';
 
 export async function bootstrap() {
   const config = getConfig();
-  initSentry(config);
+  initSentry(config, { serviceName: 'system-api' });
 
   const redis = createRedisClient(config);
   await redis.connect();
