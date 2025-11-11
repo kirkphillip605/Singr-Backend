@@ -1,15 +1,16 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 
 import type { AppConfig } from '../../config';
 import type { UpdateVenueInput, VenueService } from '../../customer/venue-service';
+import { createNotFoundError, createValidationError } from '../../http/problem';
 import {
-  createAuthorizationError,
-  createNotFoundError,
-  createValidationError,
-  HttpError,
-  replyWithProblem,
-} from '../../http/problem';
+  handleRouteError,
+  parseBody,
+  parseParams,
+  parseQuery,
+  requireCustomerContext,
+} from './utils';
 
 const listQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
@@ -244,64 +245,5 @@ export async function registerCustomerVenueRoutes(
     } catch (error) {
       await handleRouteError(reply, error);
     }
-  });
-}
-
-function parseBody<T>(schema: z.ZodType<T>, body: unknown): T {
-  const parsed = schema.safeParse(body);
-  if (parsed.success) {
-    return parsed.data;
-  }
-
-  throw createValidationError('Invalid request body.', {
-    fieldErrors: parsed.error.flatten().fieldErrors,
-    formErrors: parsed.error.flatten().formErrors,
-  });
-}
-
-function parseQuery<T>(schema: z.ZodType<T>, query: unknown): T {
-  const parsed = schema.safeParse(query);
-  if (parsed.success) {
-    return parsed.data;
-  }
-
-  throw createValidationError('Invalid query parameters.', {
-    fieldErrors: parsed.error.flatten().fieldErrors,
-    formErrors: parsed.error.flatten().formErrors,
-  });
-}
-
-function parseParams<T>(schema: z.ZodType<T>, params: unknown): T {
-  const parsed = schema.safeParse(params);
-  if (parsed.success) {
-    return parsed.data;
-  }
-
-  throw createValidationError('Invalid route parameters.', {
-    fieldErrors: parsed.error.flatten().fieldErrors,
-    formErrors: parsed.error.flatten().formErrors,
-  });
-}
-
-async function handleRouteError(reply: FastifyReply, error: unknown) {
-  if (error instanceof HttpError) {
-    replyWithProblem(reply, error.problem);
-    return;
-  }
-
-  throw error;
-}
-
-function requireCustomerContext(request: FastifyRequest): string {
-  const user = request.authorization.requireUser();
-  const context = request.authorization.activeContext;
-
-  if (context?.type === 'customer') {
-    return context.id;
-  }
-
-  throw createAuthorizationError('Active customer context is required.', {
-    reason: 'customer_context_required',
-    userId: user.id,
   });
 }

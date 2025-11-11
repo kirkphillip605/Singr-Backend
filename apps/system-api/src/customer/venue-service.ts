@@ -423,9 +423,7 @@ export class VenueService {
     }
 
     const whereClause =
-      conditions.length > 0
-        ? Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`
-        : Prisma.empty;
+      conditions.length > 0 ? Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}` : Prisma.empty;
 
     const offset = (params.page - 1) * params.pageSize;
 

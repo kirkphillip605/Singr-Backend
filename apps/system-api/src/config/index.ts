@@ -51,6 +51,7 @@ export type AppConfig = {
   };
   cache: {
     venueListTtlSeconds: number;
+    systemListTtlSeconds: number;
   };
 };
 
@@ -86,6 +87,7 @@ const configSpec = {
   RATE_LIMIT_TRUST_PROXY: bool({ devDefault: true, default: false }),
   METRICS_ENABLED: bool({ devDefault: true, default: true }),
   VENUES_CACHE_TTL_SECONDS: num({ devDefault: 300, default: 300 }),
+  SYSTEMS_CACHE_TTL_SECONDS: num({ devDefault: 300, default: 300 }),
 };
 
 function parseCorsOrigins(raw: string): string[] {
@@ -149,6 +151,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     },
     cache: {
       venueListTtlSeconds: Number(raw.VENUES_CACHE_TTL_SECONDS),
+      systemListTtlSeconds: Number(raw.SYSTEMS_CACHE_TTL_SECONDS),
     },
   };
 }
