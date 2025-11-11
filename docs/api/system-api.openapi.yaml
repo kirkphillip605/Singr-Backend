@@ -1,0 +1,1200 @@
+openapi: 3.1.0
+info:
+  title: Singr System API
+  version: 0.1.0
+  description: >-
+    REST contract for the Singr System API. The specification is derived from the Fastify
+    routes implemented under `apps/system-api/src/routes`.
+servers:
+  - url: https://api.singrkaraoke.com
+    description: Production
+  - url: http://localhost:3000
+    description: Local development (Docker Compose)
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Session:
+      type: object
+      required: [accessToken, accessTokenExpiresAt, refreshToken, refreshTokenExpiresAt, claims]
+      properties:
+        accessToken:
+          type: string
+          description: ES256 JWT signed with the configured private key.
+        accessTokenExpiresAt:
+          type: integer
+          description: Expiration timestamp (seconds since epoch).
+        refreshToken:
+          type: string
+        refreshTokenExpiresAt:
+          type: string
+          format: date-time
+        claims:
+          $ref: '#/components/schemas/AccessTokenClaims'
+    AccessTokenClaims:
+      type: object
+      required: [sub, email, aud, iss, exp, iat, jti, roles, organizations]
+      properties:
+        sub:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        aud:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+        iss:
+          type: string
+        exp:
+          type: integer
+        iat:
+          type: integer
+        jti:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+        organizations:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrganizationClaim'
+        activeContext:
+          $ref: '#/components/schemas/ActiveContext'
+    ActiveContext:
+      type: object
+      required: [type, id]
+      properties:
+        type:
+          type: string
+          enum: [customer, singer]
+        id:
+          type: string
+          format: uuid
+    OrganizationClaim:
+      type: object
+      required: [id, roles]
+      properties:
+        id:
+          type: string
+          format: uuid
+        roles:
+          type: array
+          items:
+            type: string
+        permissionsHash:
+          type: string
+          description: Version hash returned by the permission cache.
+    Profile:
+      type: object
+      required: [user, organizations, activeContext, branding]
+      properties:
+        user:
+          type: object
+          required: [id, email, globalRoles, isEmailVerified, createdAt, updatedAt]
+          properties:
+            id:
+              type: string
+              format: uuid
+            email:
+              type: string
+              format: email
+            name:
+              type: string
+              nullable: true
+            displayName:
+              type: string
+              nullable: true
+            globalRoles:
+              type: array
+              items:
+                type: string
+            isEmailVerified:
+              type: boolean
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+        organizations:
+          type: array
+          items:
+            type: object
+            required: [id, name, permissions]
+            properties:
+              id:
+                type: string
+                format: uuid
+              name:
+                type: string
+                nullable: true
+              roleSlug:
+                type: string
+                nullable: true
+              permissions:
+                type: array
+                items:
+                  type: string
+              permissionsVersion:
+                type: string
+                nullable: true
+        singerProfile:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            nickname:
+              type: string
+              nullable: true
+            avatarUrl:
+              type: string
+              nullable: true
+            preferences:
+              description: Arbitrary JSON blob keyed by the singer web client.
+              type: object
+              additionalProperties: true
+        activeContext:
+          oneOf:
+            - $ref: '#/components/schemas/ActiveContext'
+            - type: 'null'
+        branding:
+          type: object
+          required: [platform]
+          properties:
+            platform:
+              type: object
+              nullable: true
+              required: [id, name, logoUrl, colorPalette]
+              properties:
+                id:
+                  type: string
+                name:
+                  type: string
+                logoUrl:
+                  type: string
+                  nullable: true
+                colorPalette:
+                  type: object
+                  additionalProperties: true
+    Venue:
+      type: object
+      required: [id, customerProfileId, openkjVenueId, urlName, acceptingRequests, name, address, city, state, postalCode, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        customerProfileId:
+          type: string
+          format: uuid
+        openkjVenueId:
+          type: integer
+        urlName:
+          type: string
+        acceptingRequests:
+          type: boolean
+        name:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        postalCode:
+          type: string
+        country:
+          type: string
+          nullable: true
+        phoneNumber:
+          type: string
+          nullable: true
+        website:
+          type: string
+          nullable: true
+        latitude:
+          type: number
+          nullable: true
+        longitude:
+          type: number
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    VenueList:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Venue'
+        pagination:
+          type: object
+          required: [page, pageSize, total, totalPages]
+          properties:
+            page:
+              type: integer
+            pageSize:
+              type: integer
+            total:
+              type: integer
+            totalPages:
+              type: integer
+    System:
+      type: object
+      required: [id, customerProfileId, openkjSystemId, name, configuration, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        customerProfileId:
+          type: string
+          format: uuid
+        openkjSystemId:
+          type: integer
+        name:
+          type: string
+        configuration:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    PublicNearbyResult:
+      type: object
+      required: [data, query]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicNearbyVenue'
+        query:
+          type: object
+          required: [latitude, longitude, radiusMeters, limit]
+          properties:
+            latitude:
+              type: number
+            longitude:
+              type: number
+            radiusMeters:
+              type: integer
+            limit:
+              type: integer
+            acceptingRequests:
+              type: boolean
+              nullable: true
+            customerProfileId:
+              type: string
+              format: uuid
+              nullable: true
+    PublicNearbyVenue:
+      allOf:
+        - $ref: '#/components/schemas/Venue'
+        - type: object
+          required: [distanceMeters]
+          properties:
+            distanceMeters:
+              type: number
+    SongSearchResult:
+      type: object
+      required: [data, pagination, query]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/SongSearchItem'
+        pagination:
+          type: object
+          required: [limit, offset, total]
+          properties:
+            limit:
+              type: integer
+            offset:
+              type: integer
+            total:
+              type: integer
+        query:
+          type: object
+          required: [query, limit, offset]
+          properties:
+            query:
+              type: string
+            customerProfileId:
+              type: string
+              format: uuid
+              nullable: true
+            openkjSystemId:
+              type: integer
+              nullable: true
+            limit:
+              type: integer
+            offset:
+              type: integer
+    SongSearchItem:
+      type: object
+      required: [id, customerProfileId, openkjSystemId, artist, title, combined]
+      properties:
+        id:
+          type: string
+        customerProfileId:
+          type: string
+          format: uuid
+        openkjSystemId:
+          type: integer
+        artist:
+          type: string
+        title:
+          type: string
+        combined:
+          type: string
+    PlatformBranding:
+      type: object
+      required: [id, name, colorPalette, poweredBySingr, metadata, updatedAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        logoUrl:
+          type: string
+          nullable: true
+        logoUrlExpiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        colorPalette:
+          type: object
+          additionalProperties: true
+        poweredBySingr:
+          type: boolean
+        domain:
+          type: string
+          nullable: true
+        appBundleId:
+          type: string
+          nullable: true
+        appPackageName:
+          type: string
+          nullable: true
+        status:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+        updatedAt:
+          type: string
+          format: date-time
+paths:
+  /healthz:
+    get:
+      summary: Health check
+      operationId: getHealth
+      responses:
+        '200':
+          description: API is alive.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  uptime:
+                    type: number
+  /readyz:
+    get:
+      summary: Readiness probe
+      operationId: getReady
+      responses:
+        '200':
+          description: Redis connectivity verified.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  timestamp:
+                    type: string
+                    format: date-time
+        '503':
+          description: Redis unavailable.
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      operationId: getMetrics
+      responses:
+        '200':
+          description: Prometheus exposition format.
+          content:
+            text/plain:
+              schema:
+                type: string
+  /v1/auth/register:
+    post:
+      summary: Register a new staff or customer account
+      operationId: postAuthRegister
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                name:
+                  type: string
+                  nullable: true
+                displayName:
+                  type: string
+                  nullable: true
+                accountType:
+                  type: string
+                  enum: [customer, singer, user]
+                organizationName:
+                  type: string
+                  nullable: true
+      responses:
+        '201':
+          description: Session issued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '409':
+          description: Email already exists.
+  /v1/auth/register/singer:
+    post:
+      summary: Register a singer self-service account
+      operationId: postAuthRegisterSinger
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                displayName:
+                  type: string
+                  nullable: true
+                nickname:
+                  type: string
+                  nullable: true
+      responses:
+        '201':
+          description: Session issued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+  /v1/auth/signin:
+    post:
+      summary: Sign in and receive a session
+      operationId: postAuthSignin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Session issued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '401':
+          description: Invalid credentials.
+  /v1/auth/signout:
+    post:
+      summary: Revoke a refresh token
+      security:
+        - bearerAuth: []
+      operationId: postAuthSignout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '204':
+          description: Token revoked.
+  /v1/auth/password/forgot:
+    post:
+      summary: Request a password reset email
+      operationId: postAuthPasswordForgot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '202':
+          description: Reset email queued.
+  /v1/auth/password/reset:
+    post:
+      summary: Complete a password reset
+      operationId: postAuthPasswordReset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, token, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                token:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '204':
+          description: Password updated.
+  /v1/auth/profile:
+    get:
+      summary: Fetch the authenticated profile
+      security:
+        - bearerAuth: []
+      operationId: getAuthProfile
+      responses:
+        '200':
+          description: Profile payload.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+  /v1/auth/context:
+    post:
+      summary: Switch active organization or singer context
+      security:
+        - bearerAuth: []
+      operationId: postAuthContext
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActiveContext'
+      responses:
+        '200':
+          description: Access token for the requested context.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [accessToken, accessTokenExpiresAt, claims]
+                properties:
+                  accessToken:
+                    type: string
+                  accessTokenExpiresAt:
+                    type: integer
+                  claims:
+                    $ref: '#/components/schemas/AccessTokenClaims'
+  /v1/customer/venues:
+    get:
+      summary: List venues for the active customer context
+      security:
+        - bearerAuth: []
+      operationId: getCustomerVenues
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: city
+          schema:
+            type: string
+        - in: query
+          name: state
+          schema:
+            type: string
+        - in: query
+          name: acceptingRequests
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Paginated venues.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VenueList'
+    post:
+      summary: Create a venue for the active customer
+      security:
+        - bearerAuth: []
+      operationId: postCustomerVenue
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [openkjVenueId, urlName, name, address, city, state, postalCode, latitude, longitude]
+              properties:
+                openkjVenueId:
+                  type: integer
+                urlName:
+                  type: string
+                acceptingRequests:
+                  type: boolean
+                name:
+                  type: string
+                address:
+                  type: string
+                city:
+                  type: string
+                state:
+                  type: string
+                postalCode:
+                  type: string
+                country:
+                  type: string
+                phoneNumber:
+                  type: string
+                  nullable: true
+                website:
+                  type: string
+                  nullable: true
+                latitude:
+                  type: number
+                longitude:
+                  type: number
+      responses:
+        '201':
+          description: Venue created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Venue'
+  /v1/customer/venues/{venueId}:
+    parameters:
+      - in: path
+        name: venueId
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: Fetch a single venue
+      security:
+        - bearerAuth: []
+      operationId: getCustomerVenue
+      responses:
+        '200':
+          description: Venue record.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Venue'
+    patch:
+      summary: Update a venue
+      security:
+        - bearerAuth: []
+      operationId: patchCustomerVenue
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                openkjVenueId:
+                  type: integer
+                urlName:
+                  type: string
+                acceptingRequests:
+                  type: boolean
+                name:
+                  type: string
+                address:
+                  type: string
+                city:
+                  type: string
+                state:
+                  type: string
+                postalCode:
+                  type: string
+                country:
+                  type: string
+                  nullable: true
+                phoneNumber:
+                  type: string
+                  nullable: true
+                website:
+                  type: string
+                  nullable: true
+                latitude:
+                  type: number
+                longitude:
+                  type: number
+      responses:
+        '200':
+          description: Venue updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Venue'
+    delete:
+      summary: Delete a venue
+      security:
+        - bearerAuth: []
+      operationId: deleteCustomerVenue
+      responses:
+        '204':
+          description: Venue removed.
+  /v1/customer/systems:
+    get:
+      summary: List playback systems for the active customer
+      security:
+        - bearerAuth: []
+      operationId: getCustomerSystems
+      responses:
+        '200':
+          description: Systems payload.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/System'
+    post:
+      summary: Create a playback system
+      security:
+        - bearerAuth: []
+      operationId: postCustomerSystem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [openkjSystemId, name]
+              properties:
+                openkjSystemId:
+                  type: integer
+                name:
+                  type: string
+                configuration:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '201':
+          description: System created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/System'
+  /v1/customer/systems/{systemId}:
+    parameters:
+      - in: path
+        name: systemId
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: Fetch a playback system
+      security:
+        - bearerAuth: []
+      operationId: getCustomerSystem
+      responses:
+        '200':
+          description: System record.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/System'
+    patch:
+      summary: Update a playback system
+      security:
+        - bearerAuth: []
+      operationId: patchCustomerSystem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                openkjSystemId:
+                  type: integer
+                name:
+                  type: string
+                configuration:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '200':
+          description: System updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/System'
+    delete:
+      summary: Delete a playback system
+      security:
+        - bearerAuth: []
+      operationId: deleteCustomerSystem
+      responses:
+        '204':
+          description: System removed.
+  /v1/public/venues/nearby:
+    get:
+      summary: Search venues near a coordinate
+      operationId: getPublicVenuesNearby
+      parameters:
+        - in: query
+          name: latitude
+          required: true
+          schema:
+            type: number
+        - in: query
+          name: longitude
+          required: true
+          schema:
+            type: number
+        - in: query
+          name: radius
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: acceptingRequests
+          schema:
+            type: boolean
+        - in: query
+          name: customerId
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Nearby venues.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicNearbyResult'
+  /v1/public/songs/search:
+    get:
+      summary: Search OpenKJ catalog entries
+      operationId: getPublicSongsSearch
+      parameters:
+        - in: query
+          name: q
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: customerId
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: openkjSystemId
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Search results.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SongSearchResult'
+  /v1/public/branding/platform:
+    get:
+      summary: Fetch platform-wide branding metadata
+      operationId: getPublicBrandingPlatform
+      responses:
+        '200':
+          description: Branding payload.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/PlatformBranding'
+  /v1/singer/profile:
+    get:
+      summary: Retrieve singer profile
+      security:
+        - bearerAuth: []
+      operationId: getSingerProfile
+      responses:
+        '200':
+          description: Singer profile details.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+    patch:
+      summary: Update singer profile
+      security:
+        - bearerAuth: []
+      operationId: patchSingerProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nickname:
+                  type: string
+                avatarUrl:
+                  type: string
+                  nullable: true
+                preferences:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '200':
+          description: Updated singer profile.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /v1/singer/requests:
+    post:
+      summary: Submit a singer request
+      security:
+        - bearerAuth: []
+      operationId: postSingerRequest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [venueId, artist, title]
+              properties:
+                venueId:
+                  type: string
+                  format: uuid
+                artist:
+                  type: string
+                title:
+                  type: string
+                keyChange:
+                  type: integer
+                  minimum: -12
+                  maximum: 12
+                notes:
+                  type: string
+                  nullable: true
+      responses:
+        '201':
+          description: Request accepted.
+  /v1/singer/favorites/songs:
+    get:
+      summary: List favorite songs
+      security:
+        - bearerAuth: []
+      operationId: getSingerFavoriteSongs
+      responses:
+        '200':
+          description: Favorite songs.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+    post:
+      summary: Add a favorite song
+      security:
+        - bearerAuth: []
+      operationId: postSingerFavoriteSong
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                artist:
+                  type: string
+                  nullable: true
+                title:
+                  type: string
+                  nullable: true
+                keyChange:
+                  type: integer
+                  minimum: -12
+                  maximum: 12
+                metadata:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '201':
+          description: Favorite created.
+  /v1/singer/favorites/songs/{favoriteId}:
+    delete:
+      summary: Remove a favorite song
+      security:
+        - bearerAuth: []
+      operationId: deleteSingerFavoriteSong
+      parameters:
+        - in: path
+          name: favoriteId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Favorite removed.
+  /v1/singer/favorites/venues:
+    get:
+      summary: List favorite venues
+      security:
+        - bearerAuth: []
+      operationId: getSingerFavoriteVenues
+      responses:
+        '200':
+          description: Favorite venues.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+    post:
+      summary: Add a favorite venue
+      security:
+        - bearerAuth: []
+      operationId: postSingerFavoriteVenue
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [venueId]
+              properties:
+                venueId:
+                  type: string
+                  format: uuid
+      responses:
+        '201':
+          description: Favorite created.
+  /v1/singer/favorites/venues/{venueId}:
+    delete:
+      summary: Remove a favorite venue
+      security:
+        - bearerAuth: []
+      operationId: deleteSingerFavoriteVenue
+      parameters:
+        - in: path
+          name: venueId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Favorite removed.
+  /v1/singer/history:
+    get:
+      summary: List singer request history
+      security:
+        - bearerAuth: []
+      operationId: getSingerHistory
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Historical request entries.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true

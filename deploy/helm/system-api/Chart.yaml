@@ -1,0 +1,6 @@
+apiVersion: v2
+name: system-api
+description: Helm chart for deploying the Singr System API, worker, and migrations
+version: 0.1.0
+appVersion: "0.0.1"
+type: application

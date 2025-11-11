@@ -1,30 +1,36 @@
 # syntax=docker/dockerfile:1.5
 
 FROM node:20-bookworm-slim AS base
-ENV NODE_ENV=production
 WORKDIR /app
+ENV NODE_ENV=production
 
 FROM base AS deps
 ENV NODE_ENV=development
-WORKDIR /app
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends python3 make g++ \
+  && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json* ./
 COPY apps/system-api/package.json apps/system-api/
-RUN npm install --include-workspace-root=false
+RUN npm ci --include-workspace-root=false
 
-FROM base AS builder
-ENV NODE_ENV=development
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+FROM deps AS builder
 COPY . .
 RUN npm run prisma:generate --workspace @singr/system-api
 RUN npm run build --workspace @singr/system-api
 
+FROM deps AS prod-deps
+RUN npm prune --omit=dev
+
 FROM base AS runner
-ENV NODE_ENV=production
 WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+ENV NODE_ENV=production
+COPY --from=prod-deps /app/node_modules ./node_modules
+COPY --from=prod-deps /app/package.json ./package.json
+COPY --from=prod-deps /app/package-lock.json ./package-lock.json
+COPY --from=prod-deps /app/apps/system-api/package.json ./apps/system-api/package.json
 COPY --from=builder /app/apps/system-api/dist ./apps/system-api/dist
 COPY --from=builder /app/apps/system-api/prisma ./apps/system-api/prisma
-COPY apps/system-api/package.json apps/system-api/package.json
+COPY apps/system-api/docker-entrypoint.sh ./apps/system-api/docker-entrypoint.sh
+RUN chmod +x ./apps/system-api/docker-entrypoint.sh
 EXPOSE 3000
-CMD ["node", "apps/system-api/dist/main.js"]
+ENTRYPOINT ["./apps/system-api/docker-entrypoint.sh"]

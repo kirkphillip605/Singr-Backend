@@ -1,0 +1,96 @@
+image:
+  repository: ghcr.io/singr/system-api
+  tag: latest
+  pullPolicy: IfNotPresent
+
+serviceAccount:
+  create: false
+  annotations: {}
+  name: ""
+
+secret:
+  enabled: true
+  nameOverride: ""
+  annotations: {}
+  stringData:
+    DATABASE_URL: ""
+    REDIS_URL: ""
+    AUTH_SECRET: ""
+    JWT_PRIVATE_KEY: ""
+    JWT_PUBLIC_KEY: ""
+    STRIPE_API_KEY: ""
+    STRIPE_WEBHOOK_SECRET: ""
+    S3_ACCESS_KEY_ID: ""
+    S3_SECRET_ACCESS_KEY: ""
+    S3_BUCKET: ""
+    S3_ENDPOINT: ""
+    EMAIL_FROM_ADDRESS: ""
+    EMAIL_FROM_NAME: ""
+    SMTP_HOST: ""
+    SMTP_USERNAME: ""
+    SMTP_PASSWORD: ""
+
+commonEnv:
+  - name: NODE_ENV
+    value: production
+  - name: PORT
+    value: "3000"
+
+commonEnvFrom: []
+
+api:
+  replicaCount: 2
+  annotations: {}
+  podAnnotations: {}
+  resources: {}
+  env: []
+  envFrom: []
+  extraContainers: []
+  extraVolumes: []
+  extraVolumeMounts: []
+  service:
+    type: ClusterIP
+    port: 3000
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+    hosts:
+      - host: api.local
+        paths:
+          - path: /
+            pathType: Prefix
+    tls: []
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+  readinessProbe:
+    httpGet:
+      path: /readyz
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+
+worker:
+  replicaCount: 1
+  annotations: {}
+  podAnnotations: {}
+  resources: {}
+  env:
+    - name: RUN_DB_MIGRATIONS
+      value: "false"
+  envFrom: []
+
+migrations:
+  backoffLimit: 3
+  annotations: {}
+  activeDeadlineSeconds: 600
+  env:
+    - name: RUN_DB_MIGRATIONS
+      value: "false"
+  envFrom: []
+
+additionalSecrets: []
