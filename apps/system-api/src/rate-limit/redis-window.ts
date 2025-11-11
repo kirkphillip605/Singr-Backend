@@ -15,6 +15,58 @@ type RateLimitOptions = {
 const DEFAULT_LIMIT = 100;
 const DEFAULT_WINDOW_MS = 60_000;
 
+type SlidingWindowOptions = {
+  limit: number;
+  windowMs: number;
+};
+
+export async function enforceSlidingWindowLimit(
+  redis: RedisClient,
+  key: string,
+  options: SlidingWindowOptions,
+) {
+  const now = Date.now();
+  const windowStart = now - options.windowMs;
+  const redisKey = `ratelimit:${key}`;
+
+  const results = await redis
+    .multi()
+    .zremrangebyscore(redisKey, 0, windowStart)
+    .zadd(redisKey, now, `${now}:${Math.random()}`)
+    .zcard(redisKey)
+    .pexpire(redisKey, options.windowMs)
+    .exec();
+
+  if (!results) {
+    throw new HttpError({
+      title: 'Too Many Requests',
+      status: 429,
+      detail: 'Rate limiter unavailable.',
+    });
+  }
+
+  const currentCountRaw = results[2]?.[1];
+  const currentCount =
+    typeof currentCountRaw === 'number' ? currentCountRaw : Number(currentCountRaw ?? 0);
+
+  if (currentCount > options.limit) {
+    throw new HttpError(
+      {
+        title: 'Too Many Requests',
+        status: 429,
+        detail: 'Rate limit exceeded.',
+      },
+      { cause: { key, currentCount } },
+    );
+  }
+
+  return {
+    remaining: Math.max(options.limit - currentCount, 0),
+    reset: Math.ceil((windowStart + options.windowMs) / 1000),
+    limit: options.limit,
+  };
+}
+
 export function registerRateLimitPlugin(app: FastifyInstance, options: RateLimitOptions) {
   const limit = options.limit ?? options.config.rateLimit.defaultMax ?? DEFAULT_LIMIT;
   const windowMs =
@@ -24,47 +76,11 @@ export function registerRateLimitPlugin(app: FastifyInstance, options: RateLimit
 
   app.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
     const key = keyGenerator(request);
-    const now = Date.now();
-    const windowStart = now - windowMs;
-    const redisKey = `ratelimit:${key}`;
+    const result = await enforceSlidingWindowLimit(options.redis, key, { limit, windowMs });
 
-    const results = await options.redis
-      .multi()
-      .zremrangebyscore(redisKey, 0, windowStart)
-      .zadd(redisKey, now, `${now}:${Math.random()}`)
-      .zcard(redisKey)
-      .pexpire(redisKey, windowMs)
-      .exec();
-
-    if (!results) {
-      throw new HttpError({
-        title: 'Too Many Requests',
-        status: 429,
-        detail: 'Rate limiter unavailable.',
-      });
-    }
-
-    const removedRaw = results[0]?.[1];
-    const currentCountRaw = results[2]?.[1];
-
-    const removedCount = typeof removedRaw === 'number' ? removedRaw : Number(removedRaw ?? 0);
-    const currentCount =
-      typeof currentCountRaw === 'number' ? currentCountRaw : Number(currentCountRaw ?? 0);
-
-    reply.header('x-ratelimit-limit', limit);
-    reply.header('x-ratelimit-remaining', Math.max(limit - currentCount, 0));
-    reply.header('x-ratelimit-reset', Math.ceil((windowStart + windowMs) / 1000));
-
-    if (currentCount > limit) {
-      throw new HttpError(
-        {
-          title: 'Too Many Requests',
-          status: 429,
-          detail: 'Rate limit exceeded.',
-        },
-        { cause: { key, removed: removedCount, currentCount } },
-      );
-    }
+    reply.header('x-ratelimit-limit', result.limit);
+    reply.header('x-ratelimit-remaining', result.remaining);
+    reply.header('x-ratelimit-reset', result.reset);
   });
 }
 

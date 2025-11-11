@@ -2,9 +2,7 @@ import { importSPKI, jwtVerify, type KeyLike } from 'jose';
 
 import type { AppConfig } from '../config';
 import { accessTokenClaimsSchema, type AccessTokenClaims } from './types';
-
-const JWT_ALGORITHM = 'ES256';
-const JWT_AUDIENCE = 'system.singrkaraoke.com';
+import { JWT_ALGORITHM, JWT_AUDIENCE } from './token-service';
 
 export class TokenVerifier {
   private readonly publicKeyPromise: Promise<KeyLike>;

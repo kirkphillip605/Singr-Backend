@@ -69,3 +69,20 @@ export function createAuthorizationError(
     cause ? { cause } : undefined,
   );
 }
+
+export function createValidationError(
+  detail: string,
+  errors?: Record<string, unknown>,
+  cause?: unknown,
+): HttpError {
+  return new HttpError(
+    {
+      type: PROBLEM_TYPES.validationError,
+      title: 'Validation Failed',
+      status: 422,
+      detail,
+      errors,
+    },
+    cause ? { cause } : undefined,
+  );
+}
