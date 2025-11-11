@@ -138,8 +138,8 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
 
   const app = Fastify(serverOptions);
 
-  registerSentryRequestInstrumentation(app);
   registerRequestContextPlugin(app);
+  registerSentryRequestInstrumentation(app);
   registerRateLimitPlugin(app, { config, redis });
   await registerAuthenticationPlugin(app, { config, tokenVerifier, permissionService });
 

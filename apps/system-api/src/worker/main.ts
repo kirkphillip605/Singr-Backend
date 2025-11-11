@@ -21,7 +21,7 @@ const QUEUE_PREFIX = 'bull';
 
 export async function bootstrapWorker() {
   const config = getConfig();
-  initSentry(config);
+  initSentry(config, { serviceName: 'system-worker' });
 
   const logger = createLogger(config);
   const redis = createRedisClient(config);

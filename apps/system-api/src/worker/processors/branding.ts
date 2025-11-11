@@ -4,17 +4,20 @@ import type { Prisma } from '@prisma/client';
 import type { BrandingScanJob } from '../../queues/producers';
 import type { WorkerContext } from '../context';
 import { serializeForAudit } from '../utils/audit';
+import { captureWorkerException, withSentryJobScope } from '../../observability/sentry-worker';
 
 export function createBrandingScanWorker(context: WorkerContext): Worker<BrandingScanJob> {
   const worker = new Worker<BrandingScanJob>(
     'branding-scan',
     async (job) => {
-      if (job.name !== 'branding-scan') {
-        context.logger.warn({ jobName: job.name }, 'Unsupported branding scan job');
-        return;
-      }
+      await withSentryJobScope(job, async () => {
+        if (job.name !== 'branding-scan') {
+          context.logger.warn({ jobName: job.name }, 'Unsupported branding scan job');
+          return;
+        }
 
-      await runBrandingProfileHealthCheck(context, job.data);
+        await runBrandingProfileHealthCheck(context, job.data);
+      });
     },
     {
       connection: context.redis.duplicate(),
@@ -25,10 +28,16 @@ export function createBrandingScanWorker(context: WorkerContext): Worker<Brandin
 
   worker.on('failed', (job, error) => {
     context.logger.error({ err: error, jobId: job?.id }, 'Branding scan job failed');
+    if (job) {
+      captureWorkerException(error, job);
+    } else {
+      captureWorkerException(error);
+    }
   });
 
   worker.on('error', (error) => {
     context.logger.error({ err: error }, 'Branding scan worker error');
+    captureWorkerException(error);
   });
 
   return worker;

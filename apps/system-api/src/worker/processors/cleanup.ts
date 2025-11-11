@@ -2,22 +2,25 @@ import { Worker } from 'bullmq';
 
 import type { CleanupJob } from '../../queues/producers';
 import type { WorkerContext } from '../context';
+import { captureWorkerException, withSentryJobScope } from '../../observability/sentry-worker';
 
 export function createCleanupWorker(context: WorkerContext): Worker<CleanupJob> {
   const worker = new Worker<CleanupJob>(
     'system-maintenance',
     async (job) => {
-      if (job.name === 'expire-organization-invitations') {
-        await expireOrganizationInvitations(context);
-        return;
-      }
+      await withSentryJobScope(job, async () => {
+        if (job.name === 'expire-organization-invitations') {
+          await expireOrganizationInvitations(context);
+          return;
+        }
 
-      if (job.name === 'prune-stripe-webhook-events') {
-        await pruneStripeWebhookEvents(context, job.data.olderThanDays);
-        return;
-      }
+        if (job.name === 'prune-stripe-webhook-events') {
+          await pruneStripeWebhookEvents(context, job.data.olderThanDays);
+          return;
+        }
 
-      context.logger.warn({ jobName: job.name }, 'Unsupported cleanup job received');
+        context.logger.warn({ jobName: job.name }, 'Unsupported cleanup job received');
+      });
     },
     {
       connection: context.redis.duplicate(),
@@ -28,10 +31,16 @@ export function createCleanupWorker(context: WorkerContext): Worker<CleanupJob> 
 
   worker.on('failed', (job, error) => {
     context.logger.error({ err: error, jobId: job?.id }, 'Cleanup job failed');
+    if (job) {
+      captureWorkerException(error, job);
+    } else {
+      captureWorkerException(error);
+    }
   });
 
   worker.on('error', (error) => {
     context.logger.error({ err: error }, 'Cleanup worker error');
+    captureWorkerException(error);
   });
 
   return worker;

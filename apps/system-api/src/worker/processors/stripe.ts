@@ -8,6 +8,7 @@ import type {
 } from '../../queues/producers';
 import type { WorkerContext } from '../context';
 import { serializeForAudit } from '../utils/audit';
+import { captureWorkerException, withSentryJobScope } from '../../observability/sentry-worker';
 
 export function createStripeWorker(
   context: WorkerContext,
@@ -15,22 +16,24 @@ export function createStripeWorker(
   const worker = new Worker<CheckoutSyncJob | SubscriptionSyncJob>(
     'stripe-webhooks',
     async (job) => {
-      if (!context.stripe) {
-        context.logger.warn('Stripe integration not configured; skipping job');
-        return;
-      }
+      await withSentryJobScope(job, async () => {
+        if (!context.stripe) {
+          context.logger.warn('Stripe integration not configured; skipping job');
+          return;
+        }
 
-      if (job.name === 'sync-checkout-session') {
-        await processCheckoutSessionJob(context, context.stripe, job.data);
-        return;
-      }
+        if (job.name === 'sync-checkout-session') {
+          await processCheckoutSessionJob(context, context.stripe, job.data);
+          return;
+        }
 
-      if (job.name === 'sync-subscription') {
-        await processSubscriptionJob(context, context.stripe, job.data);
-        return;
-      }
+        if (job.name === 'sync-subscription') {
+          await processSubscriptionJob(context, context.stripe, job.data);
+          return;
+        }
 
-      context.logger.warn({ jobName: job.name }, 'Received unsupported Stripe job');
+        context.logger.warn({ jobName: job.name }, 'Received unsupported Stripe job');
+      });
     },
     {
       connection: context.redis.duplicate(),
@@ -41,10 +44,16 @@ export function createStripeWorker(
 
   worker.on('failed', (job, error) => {
     context.logger.error({ err: error, jobId: job?.id }, 'Stripe job failed');
+    if (job) {
+      captureWorkerException(error, job);
+    } else {
+      captureWorkerException(error);
+    }
   });
 
   worker.on('error', (error) => {
     context.logger.error({ err: error }, 'Stripe worker error');
+    captureWorkerException(error);
   });
 
   return worker;
