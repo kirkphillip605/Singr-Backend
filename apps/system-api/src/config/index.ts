@@ -57,12 +57,21 @@ export type AppConfig = {
     brandingProfileTtlSeconds: number;
     organizationUserListTtlSeconds: number;
     songdbIngestTtlSeconds: number;
+    singerProfileTtlSeconds: number;
+    singerFavoritesTtlSeconds: number;
+    singerHistoryTtlSeconds: number;
   };
   branding: {
     uploadUrlTtlSeconds: number;
   };
   organization: {
     invitationTtlSeconds: number;
+  };
+  singer: {
+    requestLimitPerSinger: number;
+    requestWindowMsPerSinger: number;
+    requestLimitPerVenue: number;
+    requestWindowMsPerVenue: number;
   };
 };
 
@@ -104,8 +113,15 @@ const configSpec = {
   BRANDING_CACHE_TTL_SECONDS: num({ devDefault: 600, default: 600 }),
   ORG_USERS_CACHE_TTL_SECONDS: num({ devDefault: 300, default: 300 }),
   SONGDB_CACHE_TTL_SECONDS: num({ devDefault: 60, default: 60 }),
+  SINGER_PROFILE_CACHE_TTL_SECONDS: num({ devDefault: 120, default: 120 }),
+  SINGER_FAVORITES_CACHE_TTL_SECONDS: num({ devDefault: 120, default: 120 }),
+  SINGER_HISTORY_CACHE_TTL_SECONDS: num({ devDefault: 60, default: 60 }),
   BRANDING_UPLOAD_URL_TTL_SECONDS: num({ devDefault: 900, default: 900 }),
   ORG_INVITATION_TTL_SECONDS: num({ devDefault: 86_400, default: 86_400 }),
+  SINGER_REQUEST_LIMIT_PER_SINGER: num({ devDefault: 10, default: 10 }),
+  SINGER_REQUEST_WINDOW_MS_PER_SINGER: num({ devDefault: 300_000, default: 300_000 }),
+  SINGER_REQUEST_LIMIT_PER_VENUE: num({ devDefault: 30, default: 30 }),
+  SINGER_REQUEST_WINDOW_MS_PER_VENUE: num({ devDefault: 300_000, default: 300_000 }),
 };
 
 function parseCorsOrigins(raw: string): string[] {
@@ -175,12 +191,21 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       brandingProfileTtlSeconds: Number(raw.BRANDING_CACHE_TTL_SECONDS),
       organizationUserListTtlSeconds: Number(raw.ORG_USERS_CACHE_TTL_SECONDS),
       songdbIngestTtlSeconds: Number(raw.SONGDB_CACHE_TTL_SECONDS),
+      singerProfileTtlSeconds: Number(raw.SINGER_PROFILE_CACHE_TTL_SECONDS),
+      singerFavoritesTtlSeconds: Number(raw.SINGER_FAVORITES_CACHE_TTL_SECONDS),
+      singerHistoryTtlSeconds: Number(raw.SINGER_HISTORY_CACHE_TTL_SECONDS),
     },
     branding: {
       uploadUrlTtlSeconds: Number(raw.BRANDING_UPLOAD_URL_TTL_SECONDS),
     },
     organization: {
       invitationTtlSeconds: Number(raw.ORG_INVITATION_TTL_SECONDS),
+    },
+    singer: {
+      requestLimitPerSinger: Number(raw.SINGER_REQUEST_LIMIT_PER_SINGER),
+      requestWindowMsPerSinger: Number(raw.SINGER_REQUEST_WINDOW_MS_PER_SINGER),
+      requestLimitPerVenue: Number(raw.SINGER_REQUEST_LIMIT_PER_VENUE),
+      requestWindowMsPerVenue: Number(raw.SINGER_REQUEST_WINDOW_MS_PER_VENUE),
     },
   };
 }

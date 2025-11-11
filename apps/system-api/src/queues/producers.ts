@@ -62,6 +62,22 @@ export class SongIndexProducer {
   }
 }
 
+export class SingerRequestNotificationProducer {
+  constructor(private readonly queue: Queue<SingerRequestNotificationJob>) {}
+
+  async enqueueRequestNotification(job: SingerRequestNotificationJob): Promise<void> {
+    await this.queue.add('dispatch-singer-request-notification', job, {
+      removeOnComplete: true,
+      attempts: 5,
+      backoff: { type: 'exponential', delay: 1_000 },
+    });
+  }
+
+  async close(): Promise<void> {
+    await this.queue.close();
+  }
+}
+
 export type InvitationJob = {
   organizationUserId: string;
   customerProfileId: string;
@@ -84,10 +100,24 @@ export type SongIndexRefreshJob = {
   openkjSystemId: number;
 };
 
+export type SingerRequestNotificationJob = {
+  requestId: string;
+  singerProfileId: string;
+  userId: string;
+  venueId: string;
+  customerProfileId: string;
+  artist: string;
+  title: string;
+  keyChange: number;
+  notes: string | null;
+  requestedAt: string;
+};
+
 export type QueueProducerSet = {
   invitationProducer: InvitationProducer;
   stripeWebhookProducer: StripeWebhookProducer;
   songIndexProducer: SongIndexProducer;
+  singerRequestProducer: SingerRequestNotificationProducer;
   close: () => Promise<void>;
 };
 
@@ -112,16 +142,23 @@ export function createQueueProducers(
     prefix,
   });
 
+  const singerRequestQueue = new Queue<SingerRequestNotificationJob>('singer-request-notifications', {
+    connection: redis.duplicate(),
+    prefix,
+  });
+
   async function close() {
     await invitationQueue.close();
     await webhookQueue.close();
     await songIndexQueue.close();
+    await singerRequestQueue.close();
   }
 
   return {
     invitationProducer: new InvitationProducer(invitationQueue),
     stripeWebhookProducer: new StripeWebhookProducer(webhookQueue),
     songIndexProducer: new SongIndexProducer(songIndexQueue),
+    singerRequestProducer: new SingerRequestNotificationProducer(singerRequestQueue),
     close,
   };
 }
