@@ -30,6 +30,7 @@ import { registerCustomerBrandingRoutes } from './routes/customer/branding';
 import { registerCustomerOrganizationUserRoutes } from './routes/customer/organization-users';
 import { registerCustomerSongdbRoutes } from './routes/customer/songdb';
 import { registerSingerRoutes } from './routes/singer';
+import { registerAdminRoutes } from './routes/admin';
 import type { RedisClient } from './lib/redis';
 import type { VenueService } from './customer/venue-service';
 import type { SystemService } from './customer/system-service';
@@ -43,6 +44,11 @@ import type { SingerProfileService } from './singer/profile-service';
 import type { SingerRequestService } from './singer/request-service';
 import type { SingerFavoritesService } from './singer/favorites-service';
 import type { SingerHistoryService } from './singer/history-service';
+import type { AdminUserService } from './admin/user-service';
+import type { AdminOrganizationService } from './admin/organization-service';
+import type { AdminRoleService } from './admin/role-service';
+import type { AdminBrandingOversightService } from './admin/branding-oversight-service';
+import type { AdminStripeWebhookService } from './admin/stripe-webhook-service';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -69,6 +75,11 @@ export type BuildServerOptions = {
   singerRequestService: SingerRequestService;
   singerFavoritesService: SingerFavoritesService;
   singerHistoryService: SingerHistoryService;
+  adminUserService: AdminUserService;
+  adminOrganizationService: AdminOrganizationService;
+  adminRoleService: AdminRoleService;
+  adminBrandingService: AdminBrandingOversightService;
+  adminStripeService: AdminStripeWebhookService;
   logger: AppLogger;
 };
 
@@ -92,6 +103,11 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
     singerRequestService,
     singerFavoritesService,
     singerHistoryService,
+    adminUserService,
+    adminOrganizationService,
+    adminRoleService,
+    adminBrandingService,
+    adminStripeService,
     logger,
   } = options;
 
@@ -166,6 +182,14 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
     requestService: singerRequestService,
     favoritesService: singerFavoritesService,
     historyService: singerHistoryService,
+  });
+  await registerAdminRoutes(app, {
+    userService: adminUserService,
+    organizationService: adminOrganizationService,
+    roleService: adminRoleService,
+    brandingService: adminBrandingService,
+    stripeService: adminStripeService,
+    metricsRegistry,
   });
 
   registerErrorHandlers(app);
