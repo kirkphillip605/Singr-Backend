@@ -1,3 +1,7 @@
+import { PermissionService } from './auth/permission-service';
+import { TokenVerifier } from './auth/token-verifier';
+import { getConfig } from './config';
+import { createPrismaClient } from './lib/prisma';
 import { getConfig } from './config';
 import { createRedisClient } from './lib/redis';
 import { initSentry } from './observability/sentry';
@@ -10,6 +14,13 @@ export async function bootstrap() {
   const redis = createRedisClient(config);
   await redis.connect();
 
+  const prisma = createPrismaClient({ config });
+  await prisma.$connect();
+
+  const tokenVerifier = new TokenVerifier(config);
+  const permissionService = new PermissionService(prisma, redis);
+
+  const app = await buildServer({ config, redis, prisma, tokenVerifier, permissionService });
   const app = await buildServer({ config, redis });
 
   await app.listen({ port: config.server.port, host: config.server.host });

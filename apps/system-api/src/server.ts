@@ -6,6 +6,15 @@ import type { FastifyBaseLogger, FastifyInstance, FastifyServerOptions } from 'f
 import { randomUUID } from 'crypto';
 import type { IncomingMessage } from 'http';
 
+import type { PrismaClient } from '@prisma/client';
+
+import { registerAuthenticationPlugin } from './auth/plugin';
+import type { PermissionService } from './auth/permission-service';
+import type { TokenVerifier } from './auth/token-verifier';
+import type { AppConfig } from './config';
+import { registerErrorHandlers } from './http/error-handler';
+import { registerRequestContextPlugin } from './http/request-context';
+import { createLogger } from './lib/logger';
 import type { AppConfig } from './config';
 import { registerErrorHandlers } from './http/error-handler';
 import { registerRequestContextPlugin } from './http/request-context';
@@ -26,6 +35,13 @@ declare module 'fastify' {
 export type BuildServerOptions = {
   config: AppConfig;
   redis: RedisClient;
+  prisma: PrismaClient;
+  tokenVerifier: TokenVerifier;
+  permissionService: PermissionService;
+};
+
+export async function buildServer(options: BuildServerOptions): Promise<FastifyInstance> {
+  const { config, redis, prisma, tokenVerifier, permissionService } = options;
 };
 
 export async function buildServer(options: BuildServerOptions): Promise<FastifyInstance> {
@@ -51,6 +67,7 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
   registerSentryRequestInstrumentation(app);
   registerRequestContextPlugin(app);
   registerRateLimitPlugin(app, { config, redis });
+  await registerAuthenticationPlugin(app, { config, tokenVerifier, permissionService });
 
   await app.register(helmet, {
     crossOriginEmbedderPolicy: false,
@@ -90,6 +107,11 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
   registerErrorHandlers(app);
 
   app.decorate('config', config);
+  app.decorate('prisma', prisma);
+
+  app.addHook('onClose', async () => {
+    await redis.quit();
+    await prisma.$disconnect();
 
   app.addHook('onClose', async () => {
     await redis.quit();
@@ -122,5 +144,6 @@ function createCorsOriginValidator(config: AppConfig) {
 declare module 'fastify' {
   interface FastifyInstance {
     config: AppConfig;
+    prisma: PrismaClient;
   }
 }
