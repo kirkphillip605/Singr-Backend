@@ -33,6 +33,14 @@ export type UpdateApiKeyInput = {
   metadata?: Record<string, unknown>;
 };
 
+export type ApiKeyValidationResult = {
+  id: string;
+  customerProfileId: string;
+  customerId: string | null;
+  description: string | null;
+  metadata: Record<string, unknown>;
+};
+
 type ApiKeyServiceOptions = {
   cacheTtlSeconds?: number;
 };
@@ -67,6 +75,60 @@ export class ApiKeyService {
     await this.redis.set(cacheKey, JSON.stringify(data), 'EX', this.cacheTtlSeconds);
 
     return data;
+  }
+
+  async validateSecret(secret: string): Promise<ApiKeyValidationResult | null> {
+    const trimmed = secret.trim();
+    if (trimmed.length === 0) {
+      return null;
+    }
+
+    const hash = createHash('sha256').update(trimmed).digest('hex');
+    const cacheKey = this.buildLookupCacheKey(hash);
+    const cached = await this.redis.get(cacheKey);
+
+    if (cached) {
+      if (cached === 'null') {
+        return null;
+      }
+
+      return JSON.parse(cached) as ApiKeyValidationResult;
+    }
+
+    const apiKey = await this.prisma.apiKey.findFirst({
+      where: { apiKeyHash: hash },
+      select: {
+        id: true,
+        customerProfileId: true,
+        customerId: true,
+        description: true,
+        metadata: true,
+        status: true,
+        revokedAt: true,
+      },
+    });
+
+    if (!apiKey || apiKey.status !== 'active' || apiKey.revokedAt) {
+      await this.redis.set(cacheKey, 'null', 'EX', this.getNegativeCacheTtl());
+      return null;
+    }
+
+    const result: ApiKeyValidationResult = {
+      id: apiKey.id,
+      customerProfileId: apiKey.customerProfileId,
+      customerId: apiKey.customerId ?? null,
+      description: apiKey.description ?? null,
+      metadata: normalizeMetadata(apiKey.metadata),
+    };
+
+    await this.redis.set(cacheKey, JSON.stringify(result), 'EX', this.cacheTtlSeconds);
+
+    await this.prisma.apiKey.update({
+      where: { id: apiKey.id },
+      data: { lastUsedAt: new Date() },
+    });
+
+    return result;
   }
 
   async createApiKey(customerProfileId: string, input: CreateApiKeyInput): Promise<CreateApiKeyResult> {
@@ -177,6 +239,10 @@ export class ApiKeyService {
     return `cache:api-keys:${customerProfileId}:version`;
   }
 
+  private buildLookupCacheKey(hash: string): string {
+    return `cache:api-keys:lookup:${hash}`;
+  }
+
   private async getCacheVersion(customerProfileId: string): Promise<number> {
     const key = this.getCacheVersionKey(customerProfileId);
     const value = await this.redis.get(key);
@@ -186,6 +252,10 @@ export class ApiKeyService {
   private async bumpCacheVersion(customerProfileId: string): Promise<void> {
     const key = this.getCacheVersionKey(customerProfileId);
     await this.redis.incr(key);
+  }
+
+  private getNegativeCacheTtl(): number {
+    return Math.max(30, Math.min(this.cacheTtlSeconds, 300));
   }
 
   private generateSecret(): string {
@@ -204,3 +274,11 @@ const apiKeySelect = {
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.ApiKeySelect;
+
+function normalizeMetadata(value: Prisma.JsonValue | null): Record<string, unknown> {
+  if (!value || Array.isArray(value) || typeof value !== 'object') {
+    return {};
+  }
+
+  return value as Record<string, unknown>;
+}

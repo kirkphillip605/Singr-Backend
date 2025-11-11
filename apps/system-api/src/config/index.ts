@@ -60,6 +60,8 @@ export type AppConfig = {
     singerProfileTtlSeconds: number;
     singerFavoritesTtlSeconds: number;
     singerHistoryTtlSeconds: number;
+    publicVenueSearchTtlSeconds: number;
+    publicSongSearchTtlSeconds: number;
   };
   branding: {
     uploadUrlTtlSeconds: number;
@@ -116,6 +118,8 @@ const configSpec = {
   SINGER_PROFILE_CACHE_TTL_SECONDS: num({ devDefault: 120, default: 120 }),
   SINGER_FAVORITES_CACHE_TTL_SECONDS: num({ devDefault: 120, default: 120 }),
   SINGER_HISTORY_CACHE_TTL_SECONDS: num({ devDefault: 60, default: 60 }),
+  PUBLIC_VENUES_CACHE_TTL_SECONDS: num({ devDefault: 300, default: 300 }),
+  PUBLIC_SONGS_CACHE_TTL_SECONDS: num({ devDefault: 300, default: 300 }),
   BRANDING_UPLOAD_URL_TTL_SECONDS: num({ devDefault: 900, default: 900 }),
   ORG_INVITATION_TTL_SECONDS: num({ devDefault: 86_400, default: 86_400 }),
   SINGER_REQUEST_LIMIT_PER_SINGER: num({ devDefault: 10, default: 10 }),
@@ -194,6 +198,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       singerProfileTtlSeconds: Number(raw.SINGER_PROFILE_CACHE_TTL_SECONDS),
       singerFavoritesTtlSeconds: Number(raw.SINGER_FAVORITES_CACHE_TTL_SECONDS),
       singerHistoryTtlSeconds: Number(raw.SINGER_HISTORY_CACHE_TTL_SECONDS),
+      publicVenueSearchTtlSeconds: Number(raw.PUBLIC_VENUES_CACHE_TTL_SECONDS),
+      publicSongSearchTtlSeconds: Number(raw.PUBLIC_SONGS_CACHE_TTL_SECONDS),
     },
     branding: {
       uploadUrlTtlSeconds: Number(raw.BRANDING_UPLOAD_URL_TTL_SECONDS),

@@ -230,6 +230,7 @@ export class VenueService {
       }
 
       await this.bumpCacheVersion(customerProfileId);
+      await this.bumpPublicSearchVersion();
       return this.mapRowToDto(created);
     } catch (error) {
       if (isUniqueViolation(error)) {
@@ -330,6 +331,7 @@ export class VenueService {
       }
 
       await this.bumpCacheVersion(customerProfileId);
+      await this.bumpPublicSearchVersion();
       return this.mapRowToDto(rows[0]);
     } catch (error) {
       if (isUniqueViolation(error)) {
@@ -356,6 +358,7 @@ export class VenueService {
     }
 
     await this.bumpCacheVersion(customerProfileId);
+    await this.bumpPublicSearchVersion();
   }
 
   private mapRowToDto(row: VenueRow): VenueDto {
@@ -486,6 +489,10 @@ export class VenueService {
   private async bumpCacheVersion(customerProfileId: string): Promise<void> {
     const key = this.getCacheVersionKey(customerProfileId);
     await this.redis.incr(key);
+  }
+
+  private async bumpPublicSearchVersion(): Promise<void> {
+    await this.redis.incr('cache:public:venues:nearby:version');
   }
 }
 

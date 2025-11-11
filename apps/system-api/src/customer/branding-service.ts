@@ -9,6 +9,10 @@ const CUSTOMER_OWNER_TYPE =
   (BrandingOwnerType as unknown as { customer?: BrandingOwnerType })?.customer ??
   ('customer' as unknown as BrandingOwnerType);
 
+const PLATFORM_OWNER_TYPE =
+  (BrandingOwnerType as unknown as { platform?: BrandingOwnerType })?.platform ??
+  ('platform' as unknown as BrandingOwnerType);
+
 export type BrandingProfileDto = {
   id: string;
   customerProfileId: string;
@@ -22,6 +26,21 @@ export type BrandingProfileDto = {
   status: string;
   metadata: Record<string, unknown>;
   createdAt: string;
+  updatedAt: string;
+};
+
+export type PlatformBrandingProfileDto = {
+  id: string;
+  name: string;
+  logoUrl: string | null;
+  logoUrlExpiresAt: string | null;
+  colorPalette: Record<string, unknown>;
+  poweredBySingr: boolean;
+  domain: string | null;
+  appBundleId: string | null;
+  appPackageName: string | null;
+  status: string;
+  metadata: Record<string, unknown>;
   updatedAt: string;
 };
 
@@ -98,6 +117,33 @@ export class BrandingService {
     }
 
     const dto = this.mapModelToDto(profile, customerProfileId);
+    await this.redis.set(cacheKey, JSON.stringify(dto), 'EX', this.cacheTtlSeconds);
+    return dto;
+  }
+
+  async getPlatformBrandingProfile(): Promise<PlatformBrandingProfileDto | null> {
+    const version = await this.getPlatformCacheVersion();
+    const cacheKey = this.buildPlatformCacheKey(version);
+    const cached = await this.redis.get(cacheKey);
+
+    if (cached) {
+      return JSON.parse(cached) as PlatformBrandingProfileDto;
+    }
+
+    const profile = await this.prisma.brandingProfile.findFirst({
+      where: {
+        ownerType: PLATFORM_OWNER_TYPE,
+        ownerId: null,
+      },
+      orderBy: { createdAt: 'asc' },
+      select: brandingSelect,
+    });
+
+    if (!profile) {
+      return null;
+    }
+
+    const dto = this.mapModelToPlatformDto(profile);
     await this.redis.set(cacheKey, JSON.stringify(dto), 'EX', this.cacheTtlSeconds);
     return dto;
   }
@@ -209,6 +255,27 @@ export class BrandingService {
     };
   }
 
+  private mapModelToPlatformDto(
+    model: Prisma.BrandingProfileGetPayload<{ select: typeof brandingSelect }>,
+  ): PlatformBrandingProfileDto {
+    const signedLogo = this.signAssetUrl(model.logoUrl ?? null);
+
+    return {
+      id: model.id,
+      name: model.name,
+      logoUrl: signedLogo?.url ?? null,
+      logoUrlExpiresAt: signedLogo?.expiresAt ?? null,
+      colorPalette: normalizeJson(model.colorPalette),
+      poweredBySingr: model.poweredBySingr,
+      domain: model.domain ?? null,
+      appBundleId: model.appBundleId ?? null,
+      appPackageName: model.appPackageName ?? null,
+      status: model.status,
+      metadata: normalizeJson(model.metadata),
+      updatedAt: model.updatedAt.toISOString(),
+    };
+  }
+
   private buildCacheKey(customerProfileId: string, version: number): string {
     return `cache:branding:${customerProfileId}:v${version}`;
   }
@@ -217,15 +284,46 @@ export class BrandingService {
     return `cache:branding:${customerProfileId}:version`;
   }
 
+  private buildPlatformCacheKey(version: number): string {
+    return `cache:branding:platform:v${version}`;
+  }
+
+  private getPlatformCacheVersionKey(): string {
+    return 'cache:branding:platform:version';
+  }
+
   private async getCacheVersion(customerProfileId: string): Promise<number> {
     const key = this.getCacheVersionKey(customerProfileId);
     const value = await this.redis.get(key);
     return value ? Number(value) : 0;
   }
 
+  private async getPlatformCacheVersion(): Promise<number> {
+    const value = await this.redis.get(this.getPlatformCacheVersionKey());
+    return value ? Number(value) : 0;
+  }
+
   private async bumpCacheVersion(customerProfileId: string): Promise<void> {
     const key = this.getCacheVersionKey(customerProfileId);
     await this.redis.incr(key);
+  }
+
+  private signAssetUrl(assetKey: string | null): { url: string; expiresAt: string | null } | null {
+    if (!assetKey) {
+      return null;
+    }
+
+    if (/^https?:\/\//i.test(assetKey)) {
+      return { url: assetKey, expiresAt: null };
+    }
+
+    const normalizedKey = assetKey.replace(/^\/+/, '');
+    const expiresAt = new Date(Date.now() + this.uploadTtlSeconds * 1000);
+    const payload = `${normalizedKey}:${expiresAt.getTime()}`;
+    const signature = createHmac('sha256', this.signingSecret).update(payload).digest('hex');
+    const url = `${this.endpoint}/${this.bucket}/${normalizedKey}?signature=${signature}&expires=${expiresAt.getTime()}`;
+
+    return { url, expiresAt: expiresAt.toISOString() };
   }
 }
 

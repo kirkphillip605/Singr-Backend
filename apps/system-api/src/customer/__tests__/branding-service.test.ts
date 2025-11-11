@@ -99,4 +99,35 @@ describe('BrandingService', () => {
     expect(upload.uploadUrl).toContain('https://storage.test/assets/');
     expect(upload.headers['content-type']).toBe('image/png');
   });
+
+  it('returns platform branding with signed assets', async () => {
+    redisRaw.get.mockImplementation(async (key: string) => {
+      if (key === 'cache:branding:platform:version') {
+        return '0';
+      }
+
+      return null;
+    });
+
+    prismaRaw.brandingProfile.findFirst.mockResolvedValueOnce({
+      id: 'platform-1',
+      name: 'Platform',
+      logoUrl: 'branding/platform/logo.png',
+      colorPalette: {},
+      poweredBySingr: true,
+      domain: null,
+      appBundleId: null,
+      appPackageName: null,
+      status: 'active',
+      metadata: {},
+      createdAt: new Date(0),
+      updatedAt: new Date(0),
+    });
+
+    const branding = await service.getPlatformBrandingProfile();
+    expect(branding?.id).toBe('platform-1');
+    expect(branding?.logoUrl).toMatch(/^https:\/\/storage\.test\/assets\//);
+    expect(branding?.logoUrlExpiresAt).toMatch(/Z$/);
+    expect(redisRaw.set).toHaveBeenCalledWith(expect.any(String), expect.any(String), 'EX', 60);
+  });
 });
