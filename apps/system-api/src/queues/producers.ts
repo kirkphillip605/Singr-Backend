@@ -78,11 +78,46 @@ export class SingerRequestNotificationProducer {
   }
 }
 
+export class CleanupProducer {
+  constructor(private readonly queue: Queue<CleanupJob>) {}
+
+  async enqueue(job: CleanupJob, opts: { repeat?: { every?: number; pattern?: string } } = {}): Promise<void> {
+    await this.queue.add(job.task, job, {
+      removeOnComplete: true,
+      attempts: 3,
+      backoff: { type: 'fixed', delay: 5_000 },
+      repeat: opts.repeat,
+    });
+  }
+
+  async close(): Promise<void> {
+    await this.queue.close();
+  }
+}
+
+export class BrandingScanProducer {
+  constructor(private readonly queue: Queue<BrandingScanJob>) {}
+
+  async enqueue(job: BrandingScanJob, opts: { repeat?: { every?: number; pattern?: string } } = {}): Promise<void> {
+    await this.queue.add('branding-scan', job, {
+      removeOnComplete: true,
+      attempts: 2,
+      backoff: { type: 'exponential', delay: 5_000 },
+      repeat: opts.repeat,
+    });
+  }
+
+  async close(): Promise<void> {
+    await this.queue.close();
+  }
+}
+
 export type InvitationJob = {
   organizationUserId: string;
   customerProfileId: string;
   email: string | null;
   invitationToken: string | null;
+  invitationExpiresAt: string | null;
 };
 
 export type CheckoutSyncJob = {
@@ -113,11 +148,22 @@ export type SingerRequestNotificationJob = {
   requestedAt: string;
 };
 
+export type CleanupJob =
+  | { task: 'expire-organization-invitations' }
+  | { task: 'prune-stripe-webhook-events'; olderThanDays?: number };
+
+export type BrandingScanJob = {
+  task: 'branding-profile-health-check';
+  customerProfileId?: string | null;
+};
+
 export type QueueProducerSet = {
   invitationProducer: InvitationProducer;
   stripeWebhookProducer: StripeWebhookProducer;
   songIndexProducer: SongIndexProducer;
   singerRequestProducer: SingerRequestNotificationProducer;
+  cleanupProducer: CleanupProducer;
+  brandingScanProducer: BrandingScanProducer;
   close: () => Promise<void>;
 };
 
@@ -147,11 +193,23 @@ export function createQueueProducers(
     prefix,
   });
 
+  const cleanupQueue = new Queue<CleanupJob>('system-maintenance', {
+    connection: redis.duplicate(),
+    prefix,
+  });
+
+  const brandingScanQueue = new Queue<BrandingScanJob>('branding-scan', {
+    connection: redis.duplicate(),
+    prefix,
+  });
+
   async function close() {
     await invitationQueue.close();
     await webhookQueue.close();
     await songIndexQueue.close();
     await singerRequestQueue.close();
+    await cleanupQueue.close();
+    await brandingScanQueue.close();
   }
 
   return {
@@ -159,6 +217,8 @@ export function createQueueProducers(
     stripeWebhookProducer: new StripeWebhookProducer(webhookQueue),
     songIndexProducer: new SongIndexProducer(songIndexQueue),
     singerRequestProducer: new SingerRequestNotificationProducer(singerRequestQueue),
+    cleanupProducer: new CleanupProducer(cleanupQueue),
+    brandingScanProducer: new BrandingScanProducer(brandingScanQueue),
     close,
   };
 }
