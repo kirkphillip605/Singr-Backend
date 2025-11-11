@@ -1,0 +1,81 @@
+version: '3.9'
+
+services:
+  system-api:
+    build:
+      context: .
+      dockerfile: apps/system-api/Dockerfile
+    image: singr/system-api:dev
+    depends_on:
+      - postgres
+      - redis
+      - minio
+      - mailpit
+    env_file:
+      - .env.development.local
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://singr:singr@postgres:5432/singr
+      REDIS_URL: redis://redis:6379/0
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY_ID: singr
+      S3_SECRET_ACCESS_KEY: singr-secret
+      S3_BUCKET: singr-assets
+      STRIPE_API_KEY: sk_test_placeholder
+      AUTH_SECRET: dev-secret
+      JWT_PRIVATE_KEY: changeme
+      JWT_PUBLIC_KEY: changeme
+      SENTRY_DSN: ''
+    ports:
+      - '3001:3000'
+    command: npm run dev --workspace @singr/system-api
+    volumes:
+      - ./:/workspace
+    working_dir: /workspace
+
+  postgres:
+    image: postgis/postgis:15-3.4
+    environment:
+      POSTGRES_USER: singr
+      POSTGRES_PASSWORD: singr
+      POSTGRES_DB: singr
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --save "" --appendonly no
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis-data:/data
+
+  minio:
+    image: quay.io/minio/minio:RELEASE.2023-12-20T01-00-02Z
+    command: server /data --console-address :9001
+    environment:
+      MINIO_ROOT_USER: singr
+      MINIO_ROOT_PASSWORD: singr-secret
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - minio-data:/data
+
+  mailpit:
+    image: axllent/mailpit:v1.10
+    ports:
+      - '8025:8025'
+      - '1025:1025'
+    environment:
+      MP_DATA_FILE: /data/mailpit.db
+    volumes:
+      - mailpit-data:/data
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:
+  mailpit-data:

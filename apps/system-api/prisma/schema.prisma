@@ -1,0 +1,606 @@
+// Baseline schema synchronized with CENTRALIZED_API_PLAN.md DDL (see migrations/0001_init/migration.sql).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum BrandingOwnerType {
+  platform
+  customer
+
+  @@map("branding_owner_type")
+}
+
+enum BrandingStatus {
+  active
+  suspended
+  revoked
+
+  @@map("branding_status")
+}
+
+enum OrganizationUserStatus {
+  invited
+  active
+  suspended
+  revoked
+
+  @@map("organization_user_status")
+}
+
+enum ApiKeyStatus {
+  active
+  revoked
+  expired
+  suspended
+
+  @@map("api_key_status")
+}
+
+model User {
+  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid @map("users_id")
+  email           String      @unique
+  passwordHash    String?     @map("password_hash")
+  passwordAlgo    String?     @map("password_algo")
+  name            String?
+  displayName     String?     @map("display_name")
+  phoneNumber     String?     @map("phone_number")
+  imageUrl        String?     @map("image_url")
+  isEmailVerified Boolean     @default(false) @map("is_email_verified")
+  lastLoginAt     DateTime?   @map("last_login_at") @db.Timestamptz(6)
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  customerProfile      CustomerProfile?
+  singerProfile        SingerProfile?
+  accounts             Account[]
+  sessions             Session[]
+  userRoles            UserRole[]
+  organizationUsers    OrganizationUser[] @relation("OrganizationUserUser")
+  organizationInvites  OrganizationUser[] @relation("OrganizationUserInvitedBy")
+  apiKeys              ApiKey[]           @relation("ApiKeyCreatedBy")
+  requests             Request[]          @relation("RequestSubmittedBy")
+
+  @@map("users")
+}
+
+model Role {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid @map("roles_id")
+  slug            String           @unique
+  description     String?
+  isSystem        Boolean          @default(false) @map("is_system")
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+  organizationUsers OrganizationUser[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid @map("permissions_id")
+  slug        String            @unique
+  description String?
+  createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  rolePermissions            RolePermission[]
+  organizationUserPermissions OrganizationUserPermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid @map("role_permissions_id")
+  roleId       String     @map("roles_id") @db.Uuid
+  permissionId String     @map("permissions_id") @db.Uuid
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([roleId, permissionId], map: "ux_role_permissions_role_permission")
+  @@map("role_permissions")
+}
+
+model UserRole {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid @map("user_roles_id")
+  userId    String   @map("users_id") @db.Uuid
+  roleId    String   @map("roles_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([userId, roleId], map: "ux_user_roles_user_role")
+  @@map("user_roles")
+}
+
+model CustomerProfile {
+  id                String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid @map("customer_profiles_id")
+  userId            String      @unique @map("users_id") @db.Uuid
+  legalBusinessName String?     @map("legal_business_name")
+  dbaName           String?     @map("dba_name")
+  stripeCustomerId  String?     @map("stripe_customer_id")
+  contactEmail      String?     @map("contact_email")
+  contactPhone      String?     @map("contact_phone")
+  timezone          String?     @default("UTC")
+  billingAddress    Json?       @map("billing_address")
+  metadata          Json?       @default("{}")
+  createdAt         DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user               User                    @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  customers          Customer[]
+  apiKeys            ApiKey[]
+  state              State?
+  venues             Venue[]
+  systems            System[]
+  songdb             SongDb[]
+  subscriptions      Subscription[]
+  organizationUsers  OrganizationUser[]
+  brandedApps        BrandedApp[]
+
+  @@map("customer_profiles")
+}
+
+model SingerProfile {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid @map("singer_profiles_id")
+  userId      String   @unique @map("users_id") @db.Uuid
+  nickname    String?
+  avatarUrl   String?  @map("avatar_url")
+  preferences Json?    @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  favoriteSongs   SingerFavoriteSong[]
+  favoriteVenues  SingerFavoriteVenue[]
+  requestHistory  SingerRequestHistory[]
+  requests        Request[]
+
+  @@map("singer_profiles")
+}
+
+model OrganizationUser {
+  id                 String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid @map("organization_users_id")
+  customerProfileId  String                 @map("customer_profiles_id") @db.Uuid
+  userId             String                 @map("users_id") @db.Uuid
+  invitedByUserId    String?                @map("invited_by_user_id") @db.Uuid
+  roleId             String?                @map("role_id") @db.Uuid
+  status             OrganizationUserStatus @default(invited)
+  invitationToken    String?                @map("invitation_token")
+  invitationExpiresAt DateTime?             @map("invitation_expires_at") @db.Timestamptz(6)
+  lastAccessedAt     DateTime?              @map("last_accessed_at") @db.Timestamptz(6)
+  createdAt          DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  customerProfile CustomerProfile @relation(fields: [customerProfileId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  user            User            @relation("OrganizationUserUser", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  invitedBy       User?           @relation("OrganizationUserInvitedBy", fields: [invitedByUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  role            Role?           @relation(fields: [roleId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  permissions     OrganizationUserPermission[]
+
+  @@unique([customerProfileId, userId], map: "organization_users_customer_profiles_id_users_id_key")
+  @@map("organization_users")
+}
+
+model OrganizationUserPermission {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid @map("organization_user_permissions_id")
+  organizationUserId  String   @map("organization_users_id") @db.Uuid
+  permissionId        String   @map("permissions_id") @db.Uuid
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organizationUser OrganizationUser @relation(fields: [organizationUserId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  permission       Permission       @relation(fields: [permissionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([organizationUserId, permissionId], map: "ux_org_user_permissions")
+  @@map("organization_user_permissions")
+}
+
+model Account {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid @map("accounts_id")
+  userId            String   @map("users_id") @db.Uuid
+  provider          String
+  providerAccountId String   @map("provider_account_id")
+  type              String
+  refreshToken      String?  @map("refresh_token")
+  accessToken       String?  @map("access_token")
+  expiresAt         BigInt?  @map("expires_at")
+  tokenType         String?  @map("token_type")
+  scope             String?
+  idToken           String?  @map("id_token")
+  sessionState      String?  @map("session_state")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid @map("sessions_id")
+  userId       String   @map("users_id") @db.Uuid
+  sessionToken String   @unique @map("session_token")
+  expiresAt    DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expiresAt  DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@id([identifier, token])
+  @@index([expiresAt], map: "idx_verification_tokens_expires")
+  @@map("verification_tokens")
+}
+
+model Customer {
+  id                String    @id @db.Uuid @map("customers_id")
+  stripeCustomerId  String    @map("stripe_customer_id")
+  customerProfileId String    @map("customer_profiles_id") @db.Uuid
+  email             String?
+  name              String?
+  phone             String?
+  description       String?
+  metadata          Json      @default("{}")
+  invoiceSettings   Json      @map("invoice_settings") @default("{}")
+  shipping          Json      @default("{}")
+  taxExempt         String?   @map("tax_exempt")
+  taxIds            Json      @map("tax_ids") @default("[]")
+  livemode          Boolean   @default(false)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  customerProfile CustomerProfile @relation(fields: [customerProfileId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  apiKeys         ApiKey[]
+  checkoutSessions StripeCheckoutSession[]
+
+  @@map("customers")
+}
+
+model ApiKey {
+  id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid @map("api_keys_id")
+  customerProfileId String       @map("customer_profiles_id") @db.Uuid
+  customerId        String?      @map("customers_id") @db.Uuid
+  createdByUserId   String?      @map("created_by_users_id") @db.Uuid
+  description       String?
+  apiKeyHash        String       @map("api_key_hash")
+  lastUsedAt        DateTime?    @map("last_used_at") @db.Timestamptz(6)
+  status            ApiKeyStatus @default(active)
+  revokedAt         DateTime?    @map("revoked_at") @db.Timestamptz(6)
+  metadata          Json?        @default("{}")
+  createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  customerProfile CustomerProfile @relation(fields: [customerProfileId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  customer        Customer?        @relation(fields: [customerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  createdBy       User?            @relation("ApiKeyCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([customerProfileId], map: "idx_api_keys_customer_profile")
+  @@index([customerId], map: "idx_api_keys_customer")
+  @@map("api_keys")
+}
+
+model StripeCheckoutSession {
+  id            String   @id @map("stripe_checkout_sessions_id")
+  customerId    String   @map("customers_id") @db.Uuid
+  paymentStatus String   @map("payment_status")
+  mode          String
+  amountTotal   BigInt?  @map("amount_total")
+  currency      String
+  url           String?
+  metadata      Json      @default("{}")
+  completedAt   DateTime? @map("completed_at") @db.Timestamptz(6)
+  expiresAt     DateTime? @map("expires_at") @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@map("stripe_checkout_sessions")
+}
+
+model StripeProduct {
+  id          String   @id @map("products_id")
+  name        String?
+  description String?
+  active      Boolean  @default(true)
+  metadata    Json     @default("{}")
+  images      String[] @default([])
+  livemode    Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  prices StripePrice[]
+
+  @@map("products")
+}
+
+model StripePrice {
+  id         String       @id @map("prices_id")
+  productId  String       @map("product_id")
+  active     Boolean      @default(true)
+  currency   String       @db.Char(3)
+  type       String
+  recurring  Json?
+  unitAmount BigInt?      @map("unit_amount")
+  metadata   Json         @default("{}")
+  livemode   Boolean      @default(false)
+  createdAt  DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  product StripeProduct @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([productId], map: "idx_prices_product")
+  @@index([active], map: "idx_prices_active")
+  @@map("prices")
+}
+
+model Subscription {
+  id                 String   @id @map("subscriptions_id")
+  customerProfileId  String   @map("customer_profiles_id") @db.Uuid
+  status             String
+  currentPeriodStart DateTime @map("current_period_start") @db.Timestamptz(6)
+  currentPeriodEnd   DateTime @map("current_period_end") @db.Timestamptz(6)
+  cancelAtPeriodEnd  Boolean  @default(false) @map("cancel_at_period_end")
+  cancelAt           DateTime? @map("cancel_at") @db.Timestamptz(6)
+  canceledAt         DateTime? @map("canceled_at") @db.Timestamptz(6)
+  metadata           Json     @default("{}")
+  livemode           Boolean  @default(false)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  customerProfile CustomerProfile @relation(fields: [customerProfileId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([customerProfileId], map: "idx_subscriptions_customer_profile")
+  @@index([status], map: "idx_subscriptions_status")
+  @@map("subscriptions")
+}
+
+model StripeWebhookEvent {
+  id             Int      @id @default(autoincrement()) @map("stripe_webhook_events_id")
+  eventId        String   @unique @map("event_id")
+  eventType      String   @map("event_type")
+  payload        Json
+  processed      Boolean  @default(false)
+  processedAt    DateTime? @map("processed_at") @db.Timestamptz(6)
+  receivedAt     DateTime @default(now()) @map("received_at") @db.Timestamptz(6)
+  livemode       Boolean  @default(false)
+  errorMessage   String?  @map("error_message")
+  requestId      String?  @map("request_id")
+  endpointSecret String?  @map("endpoint_secret")
+
+  @@map("stripe_webhook_events")
+}
+
+model State {
+  customerProfileId String @id @map("customer_profiles_id") @db.Uuid
+  serial            BigInt @default(1)
+
+  customerProfile CustomerProfile @relation(fields: [customerProfileId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@map("state")
+}
+
+model Venue {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid @map("venues_id")
+  customerProfileId String   @map("customer_profiles_id") @db.Uuid
+  openkjVenueId     Int      @map("openkj_venue_id")
+  urlName           String   @unique @map("url_name")
+  acceptingRequests Boolean  @default(true) @map("accepting_requests")
+  name              String
+  address           String
+  city              String
+  state             String
+  postalCode        String   @map("postal_code")
+  country           String?
+  phoneNumber       String?  @map("phone_number")
+  website           String?
+  location          Unsupported("geography(Point,4326)")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  customerProfile CustomerProfile @relation(fields: [customerProfileId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  requests        Request[]
+  favoriteVenues  SingerFavoriteVenue[]
+  requestHistory  SingerRequestHistory[]
+
+  @@unique([customerProfileId, openkjVenueId], map: "venues_customer_profiles_id_openkj_venue_id_key")
+  @@index([customerProfileId], map: "idx_venues_customer_profile")
+  @@map("venues")
+}
+
+model System {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid @map("systems_id")
+  customerProfileId String   @map("customer_profiles_id") @db.Uuid
+  openkjSystemId    Int      @map("openkj_system_id")
+  name              String
+  configuration     Json?    @default("{}")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  customerProfile CustomerProfile @relation(fields: [customerProfileId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([customerProfileId, openkjSystemId], map: "systems_customer_profiles_id_openkj_system_id_key")
+  @@index([customerProfileId], map: "idx_systems_customer_profile")
+  @@map("systems")
+}
+
+model SongDb {
+  id                 BigInt  @id @default(autoincrement()) @map("songdb_id")
+  customerProfileId  String  @map("customer_profiles_id") @db.Uuid
+  openkjSystemId     Int     @map("openkj_system_id")
+  artist             String
+  title              String
+  combined           String
+  normalizedCombined String  @map("normalized_combined")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  customerProfile CustomerProfile @relation(fields: [customerProfileId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([customerProfileId, openkjSystemId, combined])
+  @@unique([customerProfileId, openkjSystemId, normalizedCombined])
+  @@index([customerProfileId, openkjSystemId, artist], map: "idx_songdb_customer_system_artist")
+  @@map("songdb")
+}
+
+model Request {
+  id                BigInt     @id @default(autoincrement()) @map("requests_id")
+  venueId           String     @map("venues_id") @db.Uuid
+  singerProfileId   String?    @map("singer_profiles_id") @db.Uuid
+  submittedByUserId String?    @map("submitted_by_users_id") @db.Uuid
+  artist            String
+  title             String
+  keyChange         Int        @default(0) @map("key_change")
+  notes             String?
+  processed         Boolean    @default(false)
+  requestedAt       DateTime   @default(now()) @map("requested_at") @db.Timestamptz(6)
+  processedAt       DateTime?  @map("processed_at") @db.Timestamptz(6)
+  createdAt         DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  venue         Venue         @relation(fields: [venueId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  singerProfile SingerProfile? @relation(fields: [singerProfileId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  submittedBy   User?          @relation("RequestSubmittedBy", fields: [submittedByUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([venueId, processed], map: "idx_requests_venue_processed")
+  @@map("requests")
+}
+
+model SingerFavoriteSong {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid @map("singer_favorite_songs_id")
+  singerProfileId String   @map("singer_profiles_id") @db.Uuid
+  artist          String?
+  title           String?
+  keyChange       Int      @default(0) @map("key_change")
+  metadata        Json?    @default("{}")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  singerProfile SingerProfile @relation(fields: [singerProfileId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([singerProfileId, artist, title, keyChange])
+  @@map("singer_favorite_songs")
+}
+
+model SingerRequestHistory {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid @map("singer_request_history_id")
+  singerProfileId String   @map("singer_profiles_id") @db.Uuid
+  venueId         String   @map("venues_id") @db.Uuid
+  artist          String
+  title           String
+  keyChange       Int      @default(0) @map("key_change")
+  requestedAt     DateTime @default(now()) @map("requested_at") @db.Timestamptz(6)
+  songFingerprint String   @map("song_fingerprint")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  singerProfile SingerProfile @relation(fields: [singerProfileId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  venue         Venue         @relation(fields: [venueId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([singerProfileId, requestedAt], map: "idx_singer_request_history_profile")
+  @@map("singer_request_history")
+}
+
+model SingerFavoriteVenue {
+  singerProfileId String   @map("singer_profiles_id") @db.Uuid
+  venueId         String   @map("venues_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  singerProfile SingerProfile @relation(fields: [singerProfileId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  venue         Venue         @relation(fields: [venueId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@id([singerProfileId, venueId])
+  @@map("singer_favorite_venues")
+}
+
+model BrandingProfile {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid @map("branding_profiles_id")
+  ownerType      BrandingOwnerType @map("owner_type")
+  ownerId        String?         @map("owner_id") @db.Uuid
+  name           String
+  logoUrl        String?         @map("logo_url")
+  colorPalette   Json            @map("color_palette") @default("{}")
+  poweredBySingr Boolean         @default(true) @map("powered_by_singr")
+  domain         String?
+  appBundleId    String?         @map("app_bundle_id")
+  appPackageName String?         @map("app_package_name")
+  status         BrandingStatus  @default(active)
+  metadata       Json?           @default("{}")
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  brandedApps BrandedApp[]
+
+  @@unique([ownerType, ownerId, name], map: "branding_profiles_owner_type_owner_id_name_key")
+  @@map("branding_profiles")
+}
+
+model BrandedApp {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid @map("branded_apps_id")
+  customerProfileId String        @map("customer_profiles_id") @db.Uuid
+  brandingProfileId String        @map("branding_profiles_id") @db.Uuid
+  name             String
+  platform         String
+  bundleIdentifier String?        @map("bundle_identifier")
+  status           BrandingStatus @default(active)
+  config           Json           @default("{}")
+  rateLimitOverride Json?         @map("rate_limit_override")
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  customerProfile CustomerProfile @relation(fields: [customerProfileId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  brandingProfile BrandingProfile @relation(fields: [brandingProfileId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  apiKeys         BrandedAppApiKey[]
+
+  @@map("branded_apps")
+}
+
+model BrandedAppApiKey {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid @map("branded_app_api_keys_id")
+  brandedAppId String         @map("branded_apps_id") @db.Uuid
+  apiKeyHash   String         @map("api_key_hash")
+  description  String?
+  lastUsedAt   DateTime?      @map("last_used_at") @db.Timestamptz(6)
+  status       BrandingStatus @default(active)
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  brandedApp BrandedApp @relation(fields: [brandedAppId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([brandedAppId, apiKeyHash])
+  @@map("branded_app_api_keys")
+}
+
+model AuditLog {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid @map("audit_logs_id")
+  tableName String   @map("table_name")
+  recordId  String?  @map("record_id")
+  userId    String?  @map("user_id") @db.Uuid
+  operation String
+  oldData   Json?
+  newData   Json?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([tableName, recordId], map: "idx_audit_logs_table_record")
+  @@index([userId, createdAt], map: "idx_audit_logs_user_created_at")
+  @@map("audit_logs")
+}

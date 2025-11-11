@@ -1,0 +1,8 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "./apps/system-api/tsconfig.build.json"
+    }
+  ]
+}
