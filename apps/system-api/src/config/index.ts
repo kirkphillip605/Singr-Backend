@@ -32,6 +32,19 @@ export type AppConfig = {
     apiKey: string | null;
     webhookSecret: string | null;
   };
+  email: {
+    provider: 'console' | 'smtp';
+    fromAddress: string;
+    fromName: string;
+    logEmails: boolean;
+    smtp: {
+      host: string;
+      port: number;
+      secure: boolean;
+      username: string | null;
+      password: string | null;
+    } | null;
+  };
   sentry: {
     dsn: string | null;
     tracesSampleRate: number;
@@ -68,6 +81,7 @@ export type AppConfig = {
   };
   organization: {
     invitationTtlSeconds: number;
+    invitationBaseUrl: string;
   };
   singer: {
     requestLimitPerSinger: number;
@@ -100,6 +114,19 @@ const configSpec = {
   S3_USE_SSL: bool({ devDefault: false, default: true }),
   STRIPE_API_KEY: str({ allowEmpty: true, default: '' }),
   STRIPE_WEBHOOK_SECRET: str({ allowEmpty: true, default: '' }),
+  EMAIL_PROVIDER: str({
+    default: 'console',
+    devDefault: 'console',
+    choices: ['console', 'smtp'] as const,
+  }),
+  EMAIL_FROM_ADDRESS: str({ devDefault: 'no-reply@singr.test', default: 'no-reply@singr.test' }),
+  EMAIL_FROM_NAME: str({ devDefault: 'Singr Team', default: 'Singr Team' }),
+  EMAIL_LOG_MESSAGES: bool({ devDefault: true, default: false }),
+  SMTP_HOST: str({ allowEmpty: true, default: '' }),
+  SMTP_PORT: num({ devDefault: 587, default: 587 }),
+  SMTP_SECURE: bool({ devDefault: false, default: true }),
+  SMTP_USERNAME: str({ allowEmpty: true, default: '' }),
+  SMTP_PASSWORD: str({ allowEmpty: true, default: '' }),
   SENTRY_DSN: str({ allowEmpty: true, default: '' }),
   SENTRY_TRACES_SAMPLE_RATE: num({ default: 0.1, devDefault: 0.1 }),
   SENTRY_PROFILES_SAMPLE_RATE: num({ default: 0.0, devDefault: 0.0 }),
@@ -122,6 +149,7 @@ const configSpec = {
   PUBLIC_SONGS_CACHE_TTL_SECONDS: num({ devDefault: 300, default: 300 }),
   BRANDING_UPLOAD_URL_TTL_SECONDS: num({ devDefault: 900, default: 900 }),
   ORG_INVITATION_TTL_SECONDS: num({ devDefault: 86_400, default: 86_400 }),
+  ORG_INVITATION_BASE_URL: str({ devDefault: 'https://app.singr.test/invite', default: 'https://app.singr.test/invite' }),
   SINGER_REQUEST_LIMIT_PER_SINGER: num({ devDefault: 10, default: 10 }),
   SINGER_REQUEST_WINDOW_MS_PER_SINGER: num({ devDefault: 300_000, default: 300_000 }),
   SINGER_REQUEST_LIMIT_PER_VENUE: num({ devDefault: 30, default: 30 }),
@@ -170,6 +198,22 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       apiKey: raw.STRIPE_API_KEY.length > 0 ? raw.STRIPE_API_KEY : null,
       webhookSecret: raw.STRIPE_WEBHOOK_SECRET.length > 0 ? raw.STRIPE_WEBHOOK_SECRET : null,
     },
+    email: {
+      provider: raw.EMAIL_PROVIDER as AppConfig['email']['provider'],
+      fromAddress: raw.EMAIL_FROM_ADDRESS,
+      fromName: raw.EMAIL_FROM_NAME,
+      logEmails: raw.EMAIL_LOG_MESSAGES,
+      smtp:
+        raw.EMAIL_PROVIDER === 'smtp'
+          ? {
+              host: raw.SMTP_HOST,
+              port: Number(raw.SMTP_PORT),
+              secure: raw.SMTP_SECURE,
+              username: raw.SMTP_USERNAME.length > 0 ? raw.SMTP_USERNAME : null,
+              password: raw.SMTP_PASSWORD.length > 0 ? raw.SMTP_PASSWORD : null,
+            }
+          : null,
+    },
     sentry: {
       dsn: raw.SENTRY_DSN.length > 0 ? raw.SENTRY_DSN : null,
       tracesSampleRate: Number(raw.SENTRY_TRACES_SAMPLE_RATE),
@@ -206,6 +250,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     },
     organization: {
       invitationTtlSeconds: Number(raw.ORG_INVITATION_TTL_SECONDS),
+      invitationBaseUrl: raw.ORG_INVITATION_BASE_URL,
     },
     singer: {
       requestLimitPerSinger: Number(raw.SINGER_REQUEST_LIMIT_PER_SINGER),

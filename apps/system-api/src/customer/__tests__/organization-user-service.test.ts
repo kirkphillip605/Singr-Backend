@@ -66,7 +66,10 @@ describe('OrganizationUserService', () => {
 
     expect(invited.status).toBe('invited');
     expect(invitationProducerRaw.enqueueInvitation).toHaveBeenCalledWith(
-      expect.objectContaining({ organizationUserId: 'org-user-1' }),
+      expect.objectContaining({
+        organizationUserId: 'org-user-1',
+        invitationExpiresAt: expect.any(String),
+      }),
     );
     expect(redisRaw.incr).toHaveBeenCalledWith('cache:organization-users:cust-1:version');
   });

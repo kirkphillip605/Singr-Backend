@@ -112,6 +112,9 @@ export class OrganizationUserService {
       customerProfileId,
       email: created.user?.email ?? null,
       invitationToken: created.invitationToken,
+      invitationExpiresAt: created.invitationExpiresAt
+        ? created.invitationExpiresAt.toISOString()
+        : null,
     });
 
     await this.bumpCacheVersion(customerProfileId);
