@@ -5,7 +5,6 @@ services:
     build:
       context: .
       dockerfile: apps/system-api/Dockerfile
-    image: singr/system-api:dev
     depends_on:
       - postgres
       - redis
