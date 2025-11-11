@@ -18,6 +18,11 @@ import { createRedisClient } from './lib/redis';
 import { initSentry } from './observability/sentry';
 import { buildServer } from './server';
 import { createQueueProducers } from './queues/producers';
+import { createLogger } from './lib/logger';
+import { SingerProfileService } from './singer/profile-service';
+import { SingerFavoritesService } from './singer/favorites-service';
+import { SingerHistoryService } from './singer/history-service';
+import { SingerRequestService } from './singer/request-service';
 
 export async function bootstrap() {
   const config = getConfig();
@@ -30,6 +35,7 @@ export async function bootstrap() {
   await prisma.$connect();
 
   const queueProducers = createQueueProducers(redis);
+  const logger = createLogger(config);
 
   const stripe = config.stripe.apiKey
     ? new Stripe(config.stripe.apiKey, { apiVersion: '2024-04-10' as const })
@@ -82,6 +88,28 @@ export async function bootstrap() {
   const songdbService = new SongdbIngestionService(prisma, redis, queueProducers.songIndexProducer, {
     cacheTtlSeconds: config.cache.songdbIngestTtlSeconds,
   });
+  const singerProfileService = new SingerProfileService(prisma, redis, {
+    cacheTtlSeconds: config.cache.singerProfileTtlSeconds,
+  });
+  const singerFavoritesService = new SingerFavoritesService(prisma, redis, {
+    cacheTtlSeconds: config.cache.singerFavoritesTtlSeconds,
+  });
+  const singerHistoryService = new SingerHistoryService(prisma, redis, {
+    cacheTtlSeconds: config.cache.singerHistoryTtlSeconds,
+  });
+  const singerRequestService = new SingerRequestService(
+    prisma,
+    redis,
+    singerHistoryService,
+    queueProducers.singerRequestProducer,
+    logger,
+    {
+      perSingerLimit: config.singer.requestLimitPerSinger,
+      perSingerWindowMs: config.singer.requestWindowMsPerSinger,
+      perVenueLimit: config.singer.requestLimitPerVenue,
+      perVenueWindowMs: config.singer.requestWindowMsPerVenue,
+    },
+  );
 
   const app = await buildServer({
     config,
@@ -98,6 +126,11 @@ export async function bootstrap() {
     organizationUserService,
     songdbService,
     queueProducers,
+    singerProfileService,
+    singerRequestService,
+    singerFavoritesService,
+    singerHistoryService,
+    logger,
   });
 
   await app.listen({ port: config.server.port, host: config.server.host });

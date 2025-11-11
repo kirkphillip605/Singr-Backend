@@ -15,7 +15,7 @@ import type { TokenVerifier } from './auth/token-verifier';
 import type { AppConfig } from './config';
 import { registerErrorHandlers } from './http/error-handler';
 import { registerRequestContextPlugin } from './http/request-context';
-import { createLogger } from './lib/logger';
+import type { AppLogger } from './lib/logger';
 import { createHttpMetrics } from './metrics/http';
 import { createMetricsRegistry } from './metrics/registry';
 import { registerSentryRequestInstrumentation } from './observability/sentry';
@@ -29,6 +29,7 @@ import { registerCustomerSubscriptionRoutes } from './routes/customer/subscripti
 import { registerCustomerBrandingRoutes } from './routes/customer/branding';
 import { registerCustomerOrganizationUserRoutes } from './routes/customer/organization-users';
 import { registerCustomerSongdbRoutes } from './routes/customer/songdb';
+import { registerSingerRoutes } from './routes/singer';
 import type { RedisClient } from './lib/redis';
 import type { VenueService } from './customer/venue-service';
 import type { SystemService } from './customer/system-service';
@@ -38,6 +39,10 @@ import type { BrandingService } from './customer/branding-service';
 import type { OrganizationUserService } from './customer/organization-user-service';
 import type { SongdbIngestionService } from './customer/songdb-ingestion-service';
 import type { QueueProducerSet } from './queues/producers';
+import type { SingerProfileService } from './singer/profile-service';
+import type { SingerRequestService } from './singer/request-service';
+import type { SingerFavoritesService } from './singer/favorites-service';
+import type { SingerHistoryService } from './singer/history-service';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -60,6 +65,11 @@ export type BuildServerOptions = {
   organizationUserService: OrganizationUserService;
   songdbService: SongdbIngestionService;
   queueProducers: QueueProducerSet;
+  singerProfileService: SingerProfileService;
+  singerRequestService: SingerRequestService;
+  singerFavoritesService: SingerFavoritesService;
+  singerHistoryService: SingerHistoryService;
+  logger: AppLogger;
 };
 
 export async function buildServer(options: BuildServerOptions): Promise<FastifyInstance> {
@@ -78,12 +88,16 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
     organizationUserService,
     songdbService,
     queueProducers,
+    singerProfileService,
+    singerRequestService,
+    singerFavoritesService,
+    singerHistoryService,
+    logger,
   } = options;
 
   const metricsRegistry = createMetricsRegistry(config);
   const httpMetrics = createHttpMetrics(metricsRegistry);
 
-  const logger = createLogger(config);
   const serverOptions: FastifyServerOptions = {
     logger: logger as unknown as FastifyBaseLogger,
     trustProxy: config.rateLimit.trustProxy,
@@ -147,6 +161,12 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
     organizationUserService,
   });
   await registerCustomerSongdbRoutes(app, { config, songdbService });
+  await registerSingerRoutes(app, {
+    profileService: singerProfileService,
+    requestService: singerRequestService,
+    favoritesService: singerFavoritesService,
+    historyService: singerHistoryService,
+  });
 
   registerErrorHandlers(app);
 
