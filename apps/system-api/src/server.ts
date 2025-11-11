@@ -15,11 +15,15 @@ import type { AppConfig } from './config';
 import { registerErrorHandlers } from './http/error-handler';
 import { registerRequestContextPlugin } from './http/request-context';
 import { createLogger } from './lib/logger';
+import type { AppConfig } from './config';
+import { registerErrorHandlers } from './http/error-handler';
+import { registerRequestContextPlugin } from './http/request-context';
 import { createHttpMetrics } from './metrics/http';
 import { createMetricsRegistry } from './metrics/registry';
 import { registerSentryRequestInstrumentation } from './observability/sentry';
 import { registerRateLimitPlugin } from './rate-limit/redis-window';
 import { registerHealthRoutes } from './routes/health';
+import { createLogger } from './lib/logger';
 import type { RedisClient } from './lib/redis';
 
 declare module 'fastify' {
@@ -38,6 +42,10 @@ export type BuildServerOptions = {
 
 export async function buildServer(options: BuildServerOptions): Promise<FastifyInstance> {
   const { config, redis, prisma, tokenVerifier, permissionService } = options;
+};
+
+export async function buildServer(options: BuildServerOptions): Promise<FastifyInstance> {
+  const { config, redis } = options;
 
   const metricsRegistry = createMetricsRegistry(config);
   const httpMetrics = createHttpMetrics(metricsRegistry);
@@ -104,6 +112,9 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
   app.addHook('onClose', async () => {
     await redis.quit();
     await prisma.$disconnect();
+
+  app.addHook('onClose', async () => {
+    await redis.quit();
   });
 
   return app;
