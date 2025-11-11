@@ -23,6 +23,11 @@ import { SingerProfileService } from './singer/profile-service';
 import { SingerFavoritesService } from './singer/favorites-service';
 import { SingerHistoryService } from './singer/history-service';
 import { SingerRequestService } from './singer/request-service';
+import { AdminUserService } from './admin/user-service';
+import { AdminOrganizationService } from './admin/organization-service';
+import { AdminRoleService } from './admin/role-service';
+import { AdminBrandingOversightService } from './admin/branding-oversight-service';
+import { AdminStripeWebhookService } from './admin/stripe-webhook-service';
 
 export async function bootstrap() {
   const config = getConfig();
@@ -110,6 +115,11 @@ export async function bootstrap() {
       perVenueWindowMs: config.singer.requestWindowMsPerVenue,
     },
   );
+  const adminUserService = new AdminUserService(prisma);
+  const adminOrganizationService = new AdminOrganizationService(prisma);
+  const adminRoleService = new AdminRoleService(prisma);
+  const adminBrandingService = new AdminBrandingOversightService(prisma);
+  const adminStripeService = new AdminStripeWebhookService(prisma, stripe);
 
   const app = await buildServer({
     config,
@@ -130,6 +140,11 @@ export async function bootstrap() {
     singerRequestService,
     singerFavoritesService,
     singerHistoryService,
+    adminUserService,
+    adminOrganizationService,
+    adminRoleService,
+    adminBrandingService,
+    adminStripeService,
     logger,
   });
 
