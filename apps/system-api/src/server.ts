@@ -31,6 +31,8 @@ import { registerCustomerOrganizationUserRoutes } from './routes/customer/organi
 import { registerCustomerSongdbRoutes } from './routes/customer/songdb';
 import { registerSingerRoutes } from './routes/singer';
 import { registerAdminRoutes } from './routes/admin';
+import { registerPublicRoutes } from './routes/public';
+import { registerOpenKjRoutes } from './routes/openkj';
 import type { RedisClient } from './lib/redis';
 import type { VenueService } from './customer/venue-service';
 import type { SystemService } from './customer/system-service';
@@ -49,6 +51,9 @@ import type { AdminOrganizationService } from './admin/organization-service';
 import type { AdminRoleService } from './admin/role-service';
 import type { AdminBrandingOversightService } from './admin/branding-oversight-service';
 import type { AdminStripeWebhookService } from './admin/stripe-webhook-service';
+import type { PublicVenueSearchService } from './public/venue-search-service';
+import type { PublicSongSearchService } from './public/song-search-service';
+import type { OpenKjCommandService } from './openkj/command-service';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -70,6 +75,9 @@ export type BuildServerOptions = {
   brandingService: BrandingService;
   organizationUserService: OrganizationUserService;
   songdbService: SongdbIngestionService;
+  publicVenueSearchService: PublicVenueSearchService;
+  publicSongSearchService: PublicSongSearchService;
+  openKjCommandService: OpenKjCommandService;
   queueProducers: QueueProducerSet;
   singerProfileService: SingerProfileService;
   singerRequestService: SingerRequestService;
@@ -98,6 +106,9 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
     brandingService,
     organizationUserService,
     songdbService,
+    publicVenueSearchService,
+    publicSongSearchService,
+    openKjCommandService,
     queueProducers,
     singerProfileService,
     singerRequestService,
@@ -177,6 +188,12 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
     organizationUserService,
   });
   await registerCustomerSongdbRoutes(app, { config, songdbService });
+  await registerPublicRoutes(app, {
+    venueSearchService: publicVenueSearchService,
+    songSearchService: publicSongSearchService,
+    brandingService,
+  });
+  await registerOpenKjRoutes(app, { commandService: openKjCommandService });
   await registerSingerRoutes(app, {
     profileService: singerProfileService,
     requestService: singerRequestService,

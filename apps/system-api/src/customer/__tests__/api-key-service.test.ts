@@ -105,4 +105,39 @@ describe('ApiKeyService', () => {
     expect(revoked.status).toBe('revoked');
     expect(redisRaw.incr).toHaveBeenCalledWith('cache:api-keys:cust-1:version');
   });
+
+  it('validates API key secrets and caches lookup result', async () => {
+    const metadata = { scope: 'openkj' };
+    prismaRaw.apiKey.findFirst.mockResolvedValueOnce({
+      id: 'key-1',
+      customerProfileId: 'cust-1',
+      customerId: 'customer-1',
+      description: 'Demo',
+      metadata,
+      status: 'active',
+      revokedAt: null,
+    });
+    prismaRaw.apiKey.update.mockResolvedValue({});
+
+    const store: Record<string, string> = {};
+    redisRaw.get.mockImplementation(async (key: string) => store[key] ?? null);
+    redisRaw.set.mockImplementation(async (key: string, value: string) => {
+      store[key] = value;
+    });
+
+    const result = await service.validateSecret('sk_example_secret');
+    expect(result).not.toBeNull();
+    expect(result?.customerProfileId).toBe('cust-1');
+    expect(result?.metadata.scope).toBe('openkj');
+    expect(prismaRaw.apiKey.update).toHaveBeenCalledWith({
+      where: { id: 'key-1' },
+      data: { lastUsedAt: expect.any(Date) },
+    });
+
+    prismaRaw.apiKey.findFirst.mockClear();
+
+    const cached = await service.validateSecret('sk_example_secret');
+    expect(prismaRaw.apiKey.findFirst).not.toHaveBeenCalled();
+    expect(cached?.customerId).toBe('customer-1');
+  });
 });

@@ -28,6 +28,9 @@ import { AdminOrganizationService } from './admin/organization-service';
 import { AdminRoleService } from './admin/role-service';
 import { AdminBrandingOversightService } from './admin/branding-oversight-service';
 import { AdminStripeWebhookService } from './admin/stripe-webhook-service';
+import { PublicVenueSearchService } from './public/venue-search-service';
+import { PublicSongSearchService } from './public/song-search-service';
+import { OpenKjCommandService } from './openkj/command-service';
 
 export async function bootstrap() {
   const config = getConfig();
@@ -93,6 +96,17 @@ export async function bootstrap() {
   const songdbService = new SongdbIngestionService(prisma, redis, queueProducers.songIndexProducer, {
     cacheTtlSeconds: config.cache.songdbIngestTtlSeconds,
   });
+  const publicVenueSearchService = new PublicVenueSearchService(prisma, redis, {
+    cacheTtlSeconds: config.cache.publicVenueSearchTtlSeconds,
+  });
+  const publicSongSearchService = new PublicSongSearchService(prisma, redis, {
+    cacheTtlSeconds: config.cache.publicSongSearchTtlSeconds,
+  });
+  const openKjCommandService = new OpenKjCommandService({
+    apiKeyService,
+    venueSearchService: publicVenueSearchService,
+    songSearchService: publicSongSearchService,
+  });
   const singerProfileService = new SingerProfileService(prisma, redis, {
     cacheTtlSeconds: config.cache.singerProfileTtlSeconds,
   });
@@ -135,6 +149,9 @@ export async function bootstrap() {
     brandingService,
     organizationUserService,
     songdbService,
+    publicVenueSearchService,
+    publicSongSearchService,
+    openKjCommandService,
     queueProducers,
     singerProfileService,
     singerRequestService,

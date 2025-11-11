@@ -71,6 +71,7 @@ export class SongdbIngestionService {
     );
 
     await this.bumpCacheVersion(customerProfileId, openkjSystemId);
+    await this.redis.incr('cache:public:songs:search:version');
 
     await this.queueIndexRefresh(customerProfileId, openkjSystemId);
 
