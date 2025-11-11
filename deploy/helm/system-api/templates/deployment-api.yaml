@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "system-api.fullname" . }}-api
+  labels:
+    {{- include "system-api.labels" . | nindent 4 }}
+  {{- with .Values.api.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: {{ .Values.api.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "system-api.selectorLabels" . | nindent 6 }}
+      component: api
+  template:
+    metadata:
+      labels:
+        {{- include "system-api.selectorLabels" . | nindent 8 }}
+        component: api
+      {{- with .Values.api.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "system-api.fullname" . }}
+      {{- else if .Values.serviceAccount.name }}
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      {{- end }}
+      containers:
+        - name: api
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 3000
+          {{- $envList := concat (default (list) .Values.commonEnv) (default (list) .Values.api.env) }}
+          {{- if $envList }}
+          env:
+{{ toYaml $envList | indent 12 }}
+          {{- end }}
+          {{- $envFromList := list }}
+          {{- if .Values.secret.enabled }}
+          {{- $envFromList = append $envFromList (dict "secretRef" (dict "name" (include "system-api.secretName" .))) }}
+          {{- end }}
+          {{- range .Values.additionalSecrets }}
+          {{- $envFromList = append $envFromList (dict "secretRef" (dict "name" .)) }}
+          {{- end }}
+          {{- range .Values.commonEnvFrom }}
+          {{- $envFromList = append $envFromList . }}
+          {{- end }}
+          {{- range .Values.api.envFrom }}
+          {{- $envFromList = append $envFromList . }}
+          {{- end }}
+          {{- if $envFromList }}
+          envFrom:
+{{ toYaml $envFromList | indent 12 }}
+          {{- end }}
+          {{- with .Values.api.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.api.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.api.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.api.extraContainers }}
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
