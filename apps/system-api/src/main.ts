@@ -3,6 +3,7 @@ import { PermissionService } from './auth/permission-service';
 import { RefreshTokenStore } from './auth/refresh-token-store';
 import { TokenService } from './auth/token-service';
 import { TokenVerifier } from './auth/token-verifier';
+import { VenueService } from './customer/venue-service';
 import { getConfig } from './config';
 import { createPrismaClient } from './lib/prisma';
 import { createRedisClient } from './lib/redis';
@@ -29,6 +30,9 @@ export async function bootstrap() {
     refreshTokenStore,
   });
   const authService = new AuthService({ prisma, tokenService, permissionService });
+  const venueService = new VenueService(prisma, redis, {
+    cacheTtlSeconds: config.cache.venueListTtlSeconds,
+  });
 
   const app = await buildServer({
     config,
@@ -37,6 +41,7 @@ export async function bootstrap() {
     tokenVerifier,
     permissionService,
     authService,
+    venueService,
   });
 
   await app.listen({ port: config.server.port, host: config.server.host });

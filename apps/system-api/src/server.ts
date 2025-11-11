@@ -22,7 +22,9 @@ import { registerSentryRequestInstrumentation } from './observability/sentry';
 import { registerRateLimitPlugin } from './rate-limit/redis-window';
 import { registerHealthRoutes } from './routes/health';
 import { registerAuthRoutes } from './routes/auth';
+import { registerCustomerVenueRoutes } from './routes/customer/venues';
 import type { RedisClient } from './lib/redis';
+import type { VenueService } from './customer/venue-service';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -37,10 +39,12 @@ export type BuildServerOptions = {
   tokenVerifier: TokenVerifier;
   permissionService: PermissionService;
   authService: AuthService;
+  venueService: VenueService;
 };
 
 export async function buildServer(options: BuildServerOptions): Promise<FastifyInstance> {
-  const { config, redis, prisma, tokenVerifier, permissionService, authService } = options;
+  const { config, redis, prisma, tokenVerifier, permissionService, authService, venueService } =
+    options;
 
   const metricsRegistry = createMetricsRegistry(config);
   const httpMetrics = createHttpMetrics(metricsRegistry);
@@ -99,6 +103,7 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
 
   await registerHealthRoutes(app, { config, redis, metricsRegistry });
   await registerAuthRoutes(app, { config, redis, authService });
+  await registerCustomerVenueRoutes(app, { config, venueService });
 
   registerErrorHandlers(app);
 

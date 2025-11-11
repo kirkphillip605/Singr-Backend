@@ -38,6 +38,7 @@ export const PROBLEM_TYPES = {
   authorizationDenied: 'https://singrkaraoke.com/problems/authorization_denied',
   rateLimited: 'https://singrkaraoke.com/problems/rate_limited',
   validationError: 'https://singrkaraoke.com/problems/validation_error',
+  notFound: 'https://singrkaraoke.com/problems/not_found',
   internalError: 'https://singrkaraoke.com/problems/internal_error',
 } as const;
 
@@ -82,6 +83,23 @@ export function createValidationError(
       status: 422,
       detail,
       errors,
+    },
+    cause ? { cause } : undefined,
+  );
+}
+
+export function createNotFoundError(
+  resource: string,
+  extras?: Record<string, unknown>,
+  cause?: unknown,
+): HttpError {
+  return new HttpError(
+    {
+      type: PROBLEM_TYPES.notFound,
+      title: 'Not Found',
+      status: 404,
+      detail: `${resource} was not found.`,
+      ...extras,
     },
     cause ? { cause } : undefined,
   );

@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'crypto';
 
-import { Prisma, OrganizationUserStatus, BrandingOwnerType, BrandingStatus } from '@prisma/client';
-import type { PrismaClient } from '@prisma/client';
+import { OrganizationUserStatus, BrandingOwnerType, BrandingStatus } from '@prisma/client';
+import type { Prisma, PrismaClient } from '@prisma/client';
 
 import { hashPassword, verifyPassword } from './password-hasher';
 import type { TokenService } from './token-service';
